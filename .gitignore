@@ -142,3 +142,4 @@ artifacts
 
 # charliecloud image for HPC
 /env/nichecompass.tar.gz
+datasets/gp_data/nichenet_ligand_target_matrix_v2_mouse.csv
