@@ -1,12 +1,14 @@
-metabolite	enzyme
-D-Lactate	HAGHL
-D-Lactate	HAGH
+standard_metName	Gene_name
+L-Lactic acid	LDHA
+L-Lactic acid	LDHB
+L-Lactic acid	HK2
 Adenosine	NT5C1B
 Adenosine	NT5C2
 Adenosine	AHCYL1
 Adenosine	AHCY
 Adenosine	NT5C3
 Adenosine	NT5E
+Adenosine	ENTPD1
 Adenosine	NT5C1A
 Adenosine	NT5M
 Adenosine	NT5C
@@ -65,6 +67,7 @@ Succinate	KDM2A
 Succinate	ALDH5A1
 Prostaglandin E2	PTGES2
 Prostaglandin E2	PTGES
+Prostaglandin E2	PTGS2
 Prostaglandin E2	CBR3
 Prostaglandin E2	PTGES3
 Prostaglandin E2	CBR1

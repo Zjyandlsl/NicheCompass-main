@@ -1,6 +1,6 @@
-metabolite	sensor
-D-Lactate	SLC16A1
-D-Lactate	HCAR1
+standard_metName	Gene_name
+L-Lactic acid	SLC16A1
+L-Lactic acid	HCAR1
 Adenosine	ADORA1
 Adenosine	ADORA2A
 Adenosine	ADORA2B
@@ -48,6 +48,6 @@ Succinate	TRPC6
 Prostaglandin E2	PTGER1
 Prostaglandin E2	PTGER2
 Prostaglandin E2	PTGER4
+Prostaglandin E2	PTGER3
 Prostaglandin E2	SLC22A1
 Prostaglandin E2	SLC22A2
-Prostaglandin E2	PTGER3
