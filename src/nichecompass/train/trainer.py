@@ -95,6 +95,7 @@ class Trainer(BaseTrainerMixin):
                  counts_key: Optional[str]="counts",
                  adj_key: str="spatial_connectivities",
                  cat_covariates_keys: Optional[List[str]]=None,
+                 node_feature_keys: Optional[List[str]]=None,
                  gp_targets_mask_key: str="nichecompass_gp_targets",
                  gp_sources_mask_key: str="nichecompass_gp_sources",                 
                  edge_val_ratio: float=0.1,
@@ -116,6 +117,7 @@ class Trainer(BaseTrainerMixin):
         self.counts_key = counts_key
         self.adj_key = adj_key
         self.cat_covariates_keys = cat_covariates_keys
+        self.node_feature_keys = node_feature_keys
         if self.cat_covariates_keys is None:
             self.n_cat_covariates = 0
         else:
@@ -174,6 +176,7 @@ class Trainer(BaseTrainerMixin):
             counts_key=self.counts_key,
             adj_key=self.adj_key,
             cat_covariates_keys=self.cat_covariates_keys,
+            node_feature_keys=self.node_feature_keys,
             edge_val_ratio=self.edge_val_ratio_,
             edge_test_ratio=0.,
             node_val_ratio=self.node_val_ratio_,

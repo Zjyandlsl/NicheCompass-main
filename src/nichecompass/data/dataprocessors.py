@@ -136,6 +136,7 @@ def prepare_data(adata: AnnData,
                  counts_key: Optional[str]="counts",
                  adj_key: str="spatial_connectivities",
                  cat_covariates_keys: Optional[List[str]]=None,
+                 node_feature_keys: Optional[List[str]]=None,
                  edge_val_ratio: float=0.1,
                  edge_test_ratio: float=0.,
                  node_val_ratio: float=0.1,
@@ -163,6 +164,10 @@ def prepare_data(adata: AnnData,
         Key under which the sparse adjacency matrix is stored in ´adata.obsp´.
     cat_covariates_keys:
         Keys under which the categorical covariates are stored in ´adata.obs´.
+    node_feature_keys:
+        Keys under which continuous node-level features are stored in
+        ´adata.obs´. These features are concatenated to the encoder input only
+        and are not reconstructed by the decoders.
     edge_val_ratio:
         Fraction of the data that is used as validation set on edge-level.
     edge_test_ratio:
@@ -189,6 +194,7 @@ def prepare_data(adata: AnnData,
         counts_key=counts_key,
         adj_key=adj_key,
         cat_covariates_keys=cat_covariates_keys,
+        node_feature_keys=node_feature_keys,
         cat_covariates_label_encoders=cat_covariates_label_encoders)
 
     # PyG Data object (has 2 edge index pairs for one edge because of symmetry;
@@ -202,7 +208,8 @@ def prepare_data(adata: AnnData,
 
     if cat_covariates_keys is not None:
         data.cat_covariates_cats = dataset.cat_covariates_cats
-
+    if node_feature_keys is not None:
+        data.node_features = dataset.node_features
     # Edge-level split for edge reconstruction
     edge_train_data, edge_val_data, edge_test_data = edge_level_split(
         data=data,

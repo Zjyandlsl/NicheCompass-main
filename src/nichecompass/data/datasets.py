@@ -50,7 +50,9 @@ class SpatialAnnTorchDataset():
                  adj_key: str="spatial_connectivities",
                  edge_label_adj_key: str="edge_label_spatial_connectivities",
                  self_loops: bool=True,
-                 cat_covariates_keys: Optional[str]=None):
+                #  cat_covariates_keys: Optional[str]=None):
+                 cat_covariates_keys: Optional[str]=None,
+                 node_feature_keys: Optional[List[str]]=None):
         if counts_key is None:
             x = adata.X
         else:
@@ -69,7 +71,16 @@ class SpatialAnnTorchDataset():
                     (self.x, torch.tensor(adata_atac.X.toarray())), axis=1)
             else:
                 self.x = torch.cat((self.x, torch.tensor(adata_atac.X)), axis=1)            
-
+        if node_feature_keys is not None:
+            missing_keys = [
+                key for key in node_feature_keys if key not in adata.obs.columns]
+            if missing_keys:
+                raise KeyError(
+                    "The following node_feature_keys were not found in "
+                    f"adata.obs: {missing_keys}")
+            self.node_features = torch.tensor(
+                adata.obs[node_feature_keys].to_numpy(),
+                dtype=torch.float32)
         # Store adjacency matrix in torch_sparse SparseTensor format
         if sp.issparse(adata.obsp[adj_key]):
             self.adj = sparse_mx_to_sparse_tensor(adata.obsp[adj_key])

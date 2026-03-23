@@ -209,6 +209,7 @@ class NicheCompass(BaseModelMixin):
                              "chrom_access_decoder"]]]=["gene_expr_decoder",
                                                         "chrom_access_decoder"],
                  cat_covariates_keys: Optional[List[str]]=None,
+                 node_feature_keys: Optional[List[str]]=None,
                  cat_covariates_no_edges: Optional[List[bool]]=None,
                  genes_idx_key: str="nichecompass_genes_idx",
                  target_genes_idx_key: str="nichecompass_target_genes_idx",
@@ -266,6 +267,7 @@ class NicheCompass(BaseModelMixin):
         self.cat_covariates_embeds_keys_ = cat_covariates_embeds_keys
         self.cat_covariates_embeds_injection_ = cat_covariates_embeds_injection
         self.cat_covariates_keys_ = cat_covariates_keys
+        self.node_feature_keys_ = node_feature_keys
         self.cat_covariates_embeds_keys_ = cat_covariates_embeds_keys
         self.genes_idx_key_ = genes_idx_key
         self.target_genes_idx_key_ = target_genes_idx_key
@@ -438,6 +440,15 @@ class NicheCompass(BaseModelMixin):
         else:
             self.modalities_ = ["rna"]
             self.n_output_peaks_ = 0
+        if node_feature_keys is not None:
+            missing_keys = [
+                key for key in node_feature_keys if key not in adata.obs]
+            if missing_keys:
+                raise ValueError(
+                    "Please specify adequate ´node_feature_keys´. "
+                    f"The following keys were not found in adata.obs: "
+                    f"{missing_keys}")
+            self.n_input_ += len(node_feature_keys)
         self.n_fc_layers_encoder_ = n_fc_layers_encoder
         self.n_layers_encoder_ = n_layers_encoder
         self.conv_layer_encoder_ = conv_layer_encoder
@@ -732,6 +743,7 @@ class NicheCompass(BaseModelMixin):
             gp_targets_mask_key=self.gp_targets_mask_key_,
             gp_sources_mask_key=self.gp_sources_mask_key_,
             cat_covariates_keys=self.cat_covariates_keys_,
+            node_feature_keys=self.node_feature_keys_,
             edge_val_ratio=edge_val_ratio,
             node_val_ratio=node_val_ratio,
             edge_batch_size=edge_batch_size,
@@ -1261,6 +1273,31 @@ class NicheCompass(BaseModelMixin):
         active_gps = self.adata.uns[self.gp_names_key_][active_gp_mask]
         return active_gps
 
+    def _ensure_node_features_on_batch(self,
+                                       node_batch,
+                                       adata: AnnData,
+                                       device: torch.device):
+        # """
+        # 如果 dataloader 生成的 batch 丢失了 node_features，
+        # 就从 adata.obs[self.node_feature_keys_] 里按 node_batch.n_id 补回来。
+        # """
+            if self.node_feature_keys_ is None or hasattr(node_batch, "node_features"):
+                return node_batch
+
+            node_feature_values = adata.obs[self.node_feature_keys_].to_numpy(
+                dtype=np.float32,
+                copy=False)
+            if hasattr(node_batch, "n_id"):
+                batch_node_features = node_feature_values[
+                node_batch.n_id.detach().cpu().numpy()]
+            else:
+                batch_node_features = node_feature_values
+
+            node_batch.node_features = torch.tensor(
+            batch_node_features,
+            dtype=torch.float32,
+            device=device)
+            return node_batch
     def get_latent_representation(
             self, 
             adata: Optional[AnnData]=None,
@@ -1326,6 +1363,7 @@ class NicheCompass(BaseModelMixin):
             counts_key=counts_key,
             adj_key=adj_key,
             cat_covariates_keys=cat_covariates_keys,
+            # cat_covariates_keys=cat_covariates_keys,
             edge_val_ratio=0.,
             edge_test_ratio=0.,
             node_val_ratio=0.,
@@ -1355,10 +1393,19 @@ class NicheCompass(BaseModelMixin):
 
         # Get latent representation for each batch of the dataloader and put it
         # into latent vectors
+        
+        # for i, node_batch in enumerate(node_loader):
+        #     n_obs_before_batch = i * node_batch_size
+        #     n_obs_after_batch = n_obs_before_batch + node_batch.batch_size
+        #     node_batch = node_batch.to(device)
         for i, node_batch in enumerate(node_loader):
             n_obs_before_batch = i * node_batch_size
             n_obs_after_batch = n_obs_before_batch + node_batch.batch_size
             node_batch = node_batch.to(device)
+            node_batch = self._ensure_node_features_on_batch(
+                node_batch=node_batch,
+                adata=adata,
+                device=device)
             if return_mu_std:
                 mu_batch, std_batch = self.model.get_latent_representation(
                     node_batch=node_batch,
@@ -1428,6 +1475,7 @@ class NicheCompass(BaseModelMixin):
                 counts_key=self.counts_key_,
                 adj_key=self.adj_key_,
                 cat_covariates_keys=self.cat_covariates_keys_,
+                node_feature_keys=self.node_feature_keys_,
                 edge_val_ratio=0.,
                 edge_test_ratio=0.,
                 node_val_ratio=0.,
@@ -1451,10 +1499,19 @@ class NicheCompass(BaseModelMixin):
 
             # Get latent representation for each batch of the dataloader and put it
             # into latent vectors
+            # for i, node_batch in enumerate(node_loader):
+            #     n_obs_before_batch = i * node_batch_size
+            #     n_obs_after_batch = n_obs_before_batch + node_batch.batch_size
+            #     node_batch = node_batch.to(device)
+                
             for i, node_batch in enumerate(node_loader):
                 n_obs_before_batch = i * node_batch_size
                 n_obs_after_batch = n_obs_before_batch + node_batch.batch_size
                 node_batch = node_batch.to(device)
+                node_batch = self._ensure_node_features_on_batch(
+                    node_batch=node_batch,
+                    adata=adata,
+                    device=device)    
                 output_batch = self.model.get_omics_decoder_outputs(
                     node_batch=node_batch,
                     only_active_gps=only_active_gps)
@@ -1639,6 +1696,7 @@ class NicheCompass(BaseModelMixin):
             counts_key=self.counts_key_,
             adj_key=self.adj_key_,
             cat_covariates_keys=self.cat_covariates_keys_,
+            node_feature_keys=self.node_feature_keys_,
             edge_val_ratio=0.,
             edge_test_ratio=0.,
             node_val_ratio=0.,
@@ -1984,4 +2042,3 @@ class NicheCompass(BaseModelMixin):
 
         # Concatenate active gene program df horizontally to ´adata.obs´
         self.adata.obs = pd.concat([self.adata.obs, active_gp_df], axis=1)
-        

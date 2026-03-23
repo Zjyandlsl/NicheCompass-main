@@ -537,6 +537,22 @@ class VGPGAE(nn.Module, BaseModuleMixin, VGAEModuleMixin):
                 (n_prior_gp + n_addon_gp), n_output_peaks, dtype=torch.bool)
             self.source_atac_dynamic_decoder_mask = torch.ones(
                 (n_prior_gp + n_addon_gp), n_output_peaks, dtype=torch.bool)
+            
+    def _get_encoder_input(self, data_batch: Data) -> torch.Tensor:
+        """
+        Build encoder inputs from omics features plus optional continuous
+        node-level features.
+        """
+        if self.log_variational_:
+            x_enc = torch.log(1 + data_batch.x)
+        else:
+            x_enc = data_batch.x
+
+        if hasattr(data_batch, "node_features"):
+            x_enc = torch.cat(
+                (x_enc, data_batch.node_features.to(x_enc.dtype)),
+                dim=1)
+        return x_enc
 
     def forward(self,
                 data_batch: Data,
@@ -595,11 +611,13 @@ class VGPGAE(nn.Module, BaseModuleMixin, VGAEModuleMixin):
 
         # Logarithmitize omics feature vector (only) for encoder input for
         # numerical stability. This will not affect node labels.
-        if self.log_variational_:
-            x_enc = torch.log(1 + x)
-        else:
-            x_enc = x
-            
+        # if self.log_variational_:
+        #     x_enc = torch.log(1 + x)
+        # else:
+        #     x_enc = x
+        # numerical stability. Optional continuous node features are appended
+        # afterwards and are not reconstructed by the decoders.
+        x_enc = self._get_encoder_input(data_batch)    
         # Get categorical covariates embedding
         if len(self.cat_covariates_cats_) > 0:
             cat_covariates_embeds = []
@@ -1397,11 +1415,11 @@ class VGPGAE(nn.Module, BaseModuleMixin, VGAEModuleMixin):
             n_gps or n_obs x n_active_gps).
         """
         # Logarithmitize omics feature vector if done during training
-        if self.log_variational_:
-            x_enc = torch.log(1 + node_batch.x)
-        else:
-            x_enc = node_batch.x # dim: n_obs x n_omics_features
-            
+        # if self.log_variational_:
+        #     x_enc = torch.log(1 + node_batch.x)
+        # else:
+        #     x_enc = node_batch.x # dim: n_obs x n_omics_features
+        x_enc = self._get_encoder_input(node_batch)   
         # Get categorical covariate embeddings
         if len(self.cat_covariates_cats_) > 0:
             cat_covariates_embeds = []
@@ -1482,11 +1500,11 @@ class VGPGAE(nn.Module, BaseModuleMixin, VGAEModuleMixin):
         batch_idx = slice(None, node_batch.batch_size)
         
         # Logarithmitize omics feature vector if done during training
-        if self.log_variational_:
-            x_enc = torch.log(1 + x)
-        else:
-            x_enc = x # dim: n_obs x n_omics_features
-            
+        # if self.log_variational_:
+        #     x_enc = torch.log(1 + x)
+        # else:
+        #     x_enc = x # dim: n_obs x n_omics_features
+        x_enc = self._get_encoder_input(node_batch)   
         # Get categorical covariate embeddings
         if len(self.cat_covariates_cats_) > 0:
             cat_covariates_embeds = []
