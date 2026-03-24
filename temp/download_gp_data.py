@@ -102,7 +102,7 @@ print("\n正在使用NicheCompass API下载基因程序数据...")
 print("这将从OmniPath和其他数据库自动获取最新数据\n")
 
 try:
-    from nichecompass.utils import (
+    from nichecompass_2.utils import (
         extract_gp_dict_from_omnipath_lr_interactions,
         extract_gp_dict_from_nichenet_lrt_interactions
     )

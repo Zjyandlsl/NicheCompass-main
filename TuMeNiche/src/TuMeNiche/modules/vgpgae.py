@@ -12,7 +12,7 @@ import torch.nn as nn
 from mlflow.exceptions import MlflowException
 from torch_geometric.data import Data
 
-from nichecompass.nn import (CosineSimGraphDecoder,
+from nichecompass_2.nn import (CosineSimGraphDecoder,
                              Encoder,
                              FCOmicsFeatureDecoder,
                              MaskedOmicsFeatureDecoder,

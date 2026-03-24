@@ -2,7 +2,7 @@ import pickle
 import os
 
 import wandb
-from nichecompass.utils import (extract_gp_dict_from_mebocost_es_interactions,
+from nichecompass_2.utils import (extract_gp_dict_from_mebocost_es_interactions,
                                 extract_gp_dict_from_nichenet_lrt_interactions,
                                 extract_gp_dict_from_omnipath_lr_interactions,
                                 filter_and_combine_gp_dict_gps)

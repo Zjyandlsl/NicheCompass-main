@@ -23,7 +23,7 @@ import scanpy as sc
 import scipy.sparse as sp
 import squidpy as sq
 
-from nichecompass.models import NicheCompass
+from nichecompass_2.models import NicheCompass
 
 ###############################################################################
 ### 1.2 Define Parameters ###

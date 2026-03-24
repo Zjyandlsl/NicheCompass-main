@@ -18,7 +18,7 @@ import argparse
 import os
 
 # has to be before scanpy
-from nichecompass.benchmarking import compute_benchmarking_metrics
+from nichecompass_2.benchmarking import compute_benchmarking_metrics
 
 import anndata as ad
 import pandas as pd

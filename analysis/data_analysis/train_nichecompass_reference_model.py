@@ -26,8 +26,8 @@ import scanpy as sc
 import scipy.sparse as sp
 import squidpy as sq
 
-from nichecompass.models import NicheCompass
-from nichecompass.utils import (add_gps_from_gp_dict_to_adata,
+from nichecompass_2.models import NicheCompass
+from nichecompass_2.utils import (add_gps_from_gp_dict_to_adata,
                                 add_multimodal_mask_to_adata,
                                 extract_gp_dict_from_collectri_tf_network,
                                 extract_gp_dict_from_mebocost_ms_interactions,

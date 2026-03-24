@@ -3,7 +3,7 @@ import os
 import anndata as ad
 import scanpy as sc
 
-from nichecompass.models import NicheCompass
+from nichecompass_2.models import NicheCompass
 
 
 config = {

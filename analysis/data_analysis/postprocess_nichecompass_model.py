@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from nichecompass.models import NicheCompass
+from nichecompass_2.models import NicheCompass
 
 ###############################################################################
 ### 1.2 Define Parameters ###

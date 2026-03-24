@@ -2,12 +2,12 @@ import torch
 import jax
 import pandas as pd
 import numpy as np
-import nichecompass
+import nichecompass_2
 import torch_geometric
 import scanpy
 
 print("\n====== 最终环境体检报告 ======")
-print(f"1. NicheCompass Version: {nichecompass.__version__}")
+print(f"1. NicheCompass Version: {nichecompass_2.__version__}")
 print(f"2. PyTorch Version: {torch.__version__} (CUDA Available: {torch.cuda.is_available()})")
 if torch.cuda.is_available():
     print(f"   - Device: {torch.cuda.get_device_name(0)}")

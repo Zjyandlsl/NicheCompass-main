@@ -1,10 +1,10 @@
 import pytest
 
-import nichecompass
+import nichecompass_2
 
 
 def test_package_has_version():
-    assert nichecompass.__version__ is not None
+    assert nichecompass_2.__version__ is not None
 
 
 @pytest.mark.skip(reason="This decorator should be removed when test passes.")

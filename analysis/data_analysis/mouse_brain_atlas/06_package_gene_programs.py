@@ -3,7 +3,7 @@ import pathlib
 import anndata as ad
 import pickle
 
-from nichecompass.utils import add_gps_from_gp_dict_to_adata
+from nichecompass_2.utils import add_gps_from_gp_dict_to_adata
 
 
 def package_gene_programs(adata, gene_program_dict):

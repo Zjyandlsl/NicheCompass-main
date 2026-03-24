@@ -18,10 +18,10 @@ import torch
 from anndata import AnnData
 from scipy.special import erfc
 
-from nichecompass.data import (initialize_dataloaders,
+from nichecompass_2.data import (initialize_dataloaders,
                                prepare_data)
-from nichecompass.modules import VGPGAE
-from nichecompass.train import Trainer
+from nichecompass_2.modules import VGPGAE
+from nichecompass_2.train import Trainer
 from .basemodelmixin import BaseModelMixin
 
 

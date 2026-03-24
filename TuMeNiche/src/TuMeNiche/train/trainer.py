@@ -7,6 +7,7 @@ import itertools
 import math
 import time
 import warnings
+
 from collections import defaultdict
 from typing import List, Optional
 
@@ -16,7 +17,7 @@ import torch
 import torch.nn as nn
 from anndata import AnnData
 
-from nichecompass.data import initialize_dataloaders, prepare_data
+from nichecompass_2.data import initialize_dataloaders, prepare_data
 from .basetrainermixin import BaseTrainerMixin
 from .metrics import eval_metrics, plot_eval_metrics
 from .utils import (_cycle_iterable,

@@ -28,8 +28,8 @@ import scipy.sparse as sp
 import squidpy as sq
 import torch
 
-from nichecompass.models import NicheCompass
-from nichecompass.utils import (add_gps_from_gp_dict_to_adata,
+from nichecompass_2.models import NicheCompass
+from nichecompass_2.utils import (add_gps_from_gp_dict_to_adata,
                                 extract_gp_dict_from_mebocost_ms_interactions,
                                 extract_gp_dict_from_nichenet_lrt_interactions,
                                 extract_gp_dict_from_omnipath_lr_interactions,
