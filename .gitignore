@@ -47,3 +47,6 @@ datasets/
 *.tar.gz
 *.npz
 *.loom
+outputs/
+train_test_jilu/
+*.h5ad
