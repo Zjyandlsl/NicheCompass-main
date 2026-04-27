@@ -1,106 +1,106 @@
 # 自动提取自 Jupyter Notebook
-# 源文件：/home/zhangjunyi/xiangmu/nichecompass-main/TuMeNiche/src/my/zhibiao/train_test/colorectal_12_cancer_CRC/myAndSpaCET_SN048_A121573_Rep2.ipynb
+# 源文件：/home/zhangjunyi/xiangmu/nichecompass-main/TuMeNiche/src/my/zhibiao/train_test/Human_Prostate_Cancer/myAndSpaCET.ipynb
 
-# =========================================================
-# Cell 0-1: 使用SpaCET得出spot反卷积结果和肿瘤非肿瘤标签
-# =========================================================
+# ===================== Cell 1 =====================
+# ===================== 1. 导入必需库 =====================
 import anndata as ad
-import pandas as pd
-import os
 
-print("="*60)
-# 1. 仅设置原始文件路径（删除输出路径，无新文件）
-path_h5ad_original = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep2.h5ad"
-path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/SpaCET_R_Result/12_colorectal_cancer_CRC/SN048_A121573_Rep2/SpaCET_CellFractions_Result.csv"
+# ===================== 2. 读取你的 h5ad 文件 =====================
+# 你的文件完整路径（直接用，无需修改）
+file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/Human_Prostate_Cancer/Human_Prostate_Cancer_annotated.h5ad"
 
-# 2. 读取原始 h5ad
-print("正在读取原始 h5ad 文件...")
-adata = ad.read_h5ad(path_h5ad_original)
+print("正在读取 h5ad 文件...")
+adata = ad.read_h5ad(file_path)
 print("文件读取成功！")
 print("="*60)
 
-# 3. 基因名格式校验（保留原逻辑）
+# ===================== 3. 查看 基因名（核心！） =====================
 print("【前 20 个基因名】：")
 gene_names = adata.var.index.tolist()
 print(gene_names[:20])
 print("="*60)
 
-if gene_names[0].startswith("ENSG"):
-    print("❌ 检测结果：Ensembl ID 格式（需要转换为 Gene Symbol！）")
+# ===================== 4. 自动判断基因名格式 =====================
+first_gene = gene_names[0]
+
+if first_gene.startswith("ENSG"):
+    print("❌ 检测结果：Ensembl ID 格式（例如 ENSG00000141510）")
+    print("⚠️  警告：SpaCET 无法直接使用，需要转换为 Gene Symbol！")
 else:
-    print("✅ 检测结果：标准 Gene Symbol 格式")
+    print("✅ 检测结果：标准 Gene Symbol 格式（例如 TP53/ACTB）")
     print("🎉 完美！可以直接运行 SpaCET 代码，无需任何修改！")
+    
+import anndata as ad
+import pandas as pd
 
-# 4. 读取 SpaCET 结果 + Spot ID 对齐校验（保留原逻辑）
+# ==========================================
+# 1. 设置文件路径
+# ==========================================
+# 你的原始 h5ad 文件路径
+path_h5ad_original = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/Human_Prostate_Cancer/Human_Prostate_Cancer_annotated.h5ad"
+
+# 你的 SpaCET 结果 CSV 文件路径
+path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/SpaCET_R_Result/Human_Prostate_Cancer/Human_Prostate_Cancer_CellFractions.csv"
+
+# 输出文件路径（建议不要覆盖原文件，生成一个新的）
+path_h5ad_output = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/Human_Prostate_Cancer/Human_Prostate_Cancer_annotated.h5ad"
+
+# ==========================================
+# 2. 读取数据
+# ==========================================
+print("正在读取数据...")
+
+# 读取原始 h5ad
+adata = ad.read_h5ad(path_h5ad_original)
+
+# 读取 SpaCET CSV
+# 假设 CSV 的第一列是 Spot ID，我们将其设为 index
 spacet_df = pd.read_csv(path_spacet_csv, index_col=0)
-print(f"✅ 原始 h5ad 包含 {adata.n_obs} 个 Spots | SpaCET 结果包含 {spacet_df.shape[0]} 个 Spots")
 
+print(f"✅ 原始 h5ad 包含 {adata.n_obs} 个 Spots")
+print(f"✅ SpaCET 结果包含 {spacet_df.shape[0]} 个 Spots")
+
+# ==========================================
+# 3. 【关键】检查并对齐 Spot ID
+# ==========================================
+# 这一步极其重要，防止因为 ID 不匹配导致数据错位
+# 找出共同的 Spot ID
 common_spots = adata.obs_names.intersection(spacet_df.index)
+
 if len(common_spots) == 0:
-    raise ValueError("❌ 错误：原始 h5ad 和 SpaCET 结果没有匹配的 Spot ID！")
+    raise ValueError("❌ 错误：原始 h5ad 和 SpaCET 结果没有匹配的 Spot ID！请检查 CSV 的第一列是否为正确的 Spot 名称。")
 elif len(common_spots) < adata.n_obs:
-    print(f"⚠️  警告：有 {adata.n_obs - len(common_spots)} 个 Spots 在 SpaCET 结果中未找到（已过滤）。")
+    print(f"⚠️  警告：有 {adata.n_obs - len(common_spots)} 个 Spots 在 SpaCET 结果中未找到（可能是在 SpaCET QC 步骤被过滤了）。")
+    # 只保留共同的 Spots（可选，或者你选择保留所有，缺失值填 NA）
+    # 这里我们选择只保留共同的，以保证数据完整性
     adata = adata[common_spots].copy()
 
-# 5. 合并数据到 adata.obs（核心注入逻辑）
-print("正在将CSV数据注入原始h5ad...")
+# 重新排序 SpaCET 的 DataFrame，使其顺序与 h5ad 完全一致
 spacet_df_aligned = spacet_df.reindex(adata.obs_names)
 
-# 🔥 核心修复：自动删除重复列，实现覆盖效果
-overlap_cols = spacet_df_aligned.columns.intersection(adata.obs.columns)
-if len(overlap_cols) > 0:
-    print(f"⚠️ 发现重复列，将自动覆盖：{overlap_cols.tolist()}")
-    adata.obs = adata.obs.drop(columns=overlap_cols)  # 删除旧列
+# ==========================================
+# 4. 合并注入到 h5ad
+# ==========================================
+print("正在合并数据...")
 
-# 合并新数据（无冲突，安全执行）
+# 将 SpaCET 的所有列合并到 adata.obs 中
+# 为了防止列名冲突，可以给 SpaCET 的列加上前缀（可选，这里直接合并）
+# spacet_df_aligned = spacet_df_aligned.add_prefix('SpaCET_') 
+
 adata.obs = adata.obs.join(spacet_df_aligned)
 
-print("✅ 注入完成！adata.obs 中新增了以下列：")
+print("✅ 合并完成！adata.obs 中新增了以下列：")
 print(spacet_df_aligned.columns.tolist())
 
-# =========================================================
-# 6. 物理清洗：剔除无病理注释及 exclude 的 Spot (新增逻辑)
-# =========================================================
-print("="*60)
-print("正在执行最终数据清洗...")
+# ==========================================
+# 5. 保存新的 h5ad 文件
+# ==========================================
+print(f"正在保存新文件至：{path_h5ad_output}")
+adata.write_h5ad(path_h5ad_output)
 
-# 确保列名正确
-annot_col = 'pathology_annotation'
-if annot_col in adata.obs.columns:
-    # 1. 将注释转换为字符串并去除空格
-    raw_annots = adata.obs[annot_col].astype(str).str.strip()
-    
-    # 2. 定义无效标签：包括 'exclude'、'nan'、'NaN'、'None' 和纯空格空值
-    # 同时利用 adata.obs[annot_col].notna() 过滤掉真正的 Pandas NaN
-    invalid_tags = ['exclude', 'nan', 'NaN', 'None', '', 'NA']
-    
-    valid_mask = (adata.obs[annot_col].notna()) & (~raw_annots.isin(invalid_tags))
-    
-    initial_count = adata.n_obs
-    adata = adata[valid_mask].copy()
-    removed_count = initial_count - adata.n_obs
-    
-    print(f"🧹 清理完毕：")
-    print(f"   - 原始 Spot 数量: {initial_count}")
-    print(f"   - 剔除无效/未标注 Spot 数量: {removed_count}")
-    print(f"   - 最终保留有效 Spot 数量: {adata.n_obs}")
-    
-    if removed_count == 0:
-        print("✅ 检查结果：该切片所有 Spot 均有有效病理标注。")
-else:
-    print(f"⚠️ 警告：未在 adata.obs 中找到 '{annot_col}' 列，跳过清洗步骤。")
+print("🎉 全部完成！你现在可以在 Python 中加载新的 h5ad 文件进行后续分析了。")
 
-# =========================================================
-# 7. 直接覆盖保存原始h5ad
-# =========================================================
-print("="*60)
-print(f"正在覆盖保存清洗后的原始文件：{path_h5ad_original}")
-adata.write_h5ad(path_h5ad_original)
-print("🎉 全部完成！SpaCET 结果已注入，且已物理剔除无标注区域。")
-
-# =========================================================
-# Cell 0-1: SpaCET 恶性分数 GMM 无监督自适应阈值计算
-# =========================================================
+# ===================== Cell 1-1 =====================
 import anndata as ad
 import pandas as pd
 import numpy as np
@@ -108,77 +108,152 @@ import scanpy as sc
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.mixture import GaussianMixture
-import os
+import os  # 新增：用于创建文件夹/路径管理
 
-# 🔥 固定输出路径
-SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET"
-os.makedirs(SAVE_DIR, exist_ok=True)
+# ==========================================
+# 🔥 固定输出路径（你指定的文件夹）
+# ==========================================
+SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/Human_Prostate_Cancer/SpaCET"
+os.makedirs(SAVE_DIR, exist_ok=True)  # 自动创建文件夹，不存在则新建
 
+# ==========================================
 # 1. 读取数据
-file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep2.h5ad"
+# ==========================================
+file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/Human_Prostate_Cancer/Human_Prostate_Cancer_annotated.h5ad"
 print("正在加载数据...")
 adata = ad.read_h5ad(file_path)
 
-# 2. 提取 SpaCET 的 Malignant 分数并使用 GMM 拟合
+# ==========================================
+# 1. 提取 SpaCET 的 Malignant 分数
+# ==========================================
+# 过滤掉 NaN 值（如果有背景点）
 malignant_scores = adata.obs['Malignant'].dropna().values
+# GMM 要求输入是 2D 数组 (n_samples, 1)
 X = malignant_scores.reshape(-1, 1)
 
+# ==========================================
+# 2. 使用 GMM (高斯混合模型) 自动寻找最优阈值
+# ==========================================
 print("正在使用高斯混合模型 (GMM) 拟合数据分布...")
+# 假设数据分为 2 类（肿瘤 vs 非肿瘤）
 gmm = GaussianMixture(n_components=2, covariance_type='full', random_state=42)
 gmm.fit(X)
 
+# 找出两个分布的均值，区分哪个是非肿瘤(低均值)，哪个是肿瘤(高均值)
 means = gmm.means_.flatten()
-class_non_tumor_idx, class_tumor_idx = np.argmin(means), np.argmax(means)
+class_non_tumor_idx = np.argmin(means)
+class_tumor_idx = np.argmax(means)
 
-# 寻找边界交点
+# 寻找两个正态分布交叉的边界点 (即最优阈值)
+# 我们在两个均值之间生成 1000 个密集点，看哪一个点模型预测的分类发生了反转
 x_test = np.linspace(means[class_non_tumor_idx], means[class_tumor_idx], 1000).reshape(-1, 1)
 preds = gmm.predict(x_test)
+
+# 找到分类反转的索引
 flip_index = np.where(preds[:-1] != preds[1:])[0]
 
-optimal_threshold = x_test[flip_index[0]][0] if len(flip_index) > 0 else np.mean(means)
+if len(flip_index) > 0:
+    optimal_threshold = x_test[flip_index[0]][0]
+else:
+    # 极端情况下如果找不到交点，取两个均值的中间值
+    optimal_threshold = np.mean(means)
+
 print(f"✨ [无监督] 自动计算出的最优划分阈值为: {optimal_threshold:.4f}")
 
-# 3. 应用划分
+# ==========================================
+# 3. 将新的划分应用到 adata 中
+# ==========================================
 col_name = f'Unsupervised_Pred_{optimal_threshold:.2f}'
-adata.obs[col_name] = np.where(adata.obs['Malignant'] > optimal_threshold, 'Predicted_Tumor', 'Predicted_Non_Tumor')
+adata.obs[col_name] = np.where(
+    adata.obs['Malignant'] > optimal_threshold, 
+    'Predicted_Tumor', 
+    'Predicted_Non_Tumor'
+)
 adata.obs[col_name] = adata.obs[col_name].astype('category')
 
-# 4. 可视化
-fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+# ==========================================
+# 4. 可视化：分布图 (解释为什么选这个阈值) + 空间图
+# ==========================================
+fig = plt.figure(figsize=(18, 5))
 
-# 子图1: 分布
-sns.histplot(malignant_scores, bins=50, stat='density', alpha=0.5, color='gray', ax=axs[0], label='Actual Data')
+# -----------------
+# 子图 1: 分数分布与 GMM 拟合曲线
+# -----------------
+ax1 = plt.subplot(1, 3, 1)
+# 画直方图
+sns.histplot(malignant_scores, bins=50, stat='density', alpha=0.5, color='gray', ax=ax1, label='Actual Data')
+
+# 画 GMM 拟合出来的两个正态分布曲线
 x_plot = np.linspace(0, 1, 1000).reshape(-1, 1)
-pdf = np.exp(gmm.score_samples(x_plot))
-resps = gmm.predict_proba(x_plot)
-axs[0].plot(x_plot, pdf * resps[:, class_non_tumor_idx], color='blue', label='Non-Tumor Distribution', lw=2)
-axs[0].plot(x_plot, pdf * resps[:, class_tumor_idx], color='red', label='Tumor Distribution', lw=2)
-axs[0].axvline(optimal_threshold, color='green', linestyle='--', lw=2.5, label=f'Optimal Threshold = {optimal_threshold:.2f}')
-axs[0].set_title('Malignant Fraction Distribution & GMM Fit')
-axs[0].legend()
+logprob = gmm.score_samples(x_plot)
+pdf = np.exp(logprob)
+responsibilities = gmm.predict_proba(x_plot)
 
-# 子图2 & 3: 空间图
-sc.pl.spatial(adata, color='Malignant', title='SpaCET Malignant Fraction', size=1, cmap='Reds', ax=axs[1], show=False)
-sc.pl.spatial(adata, color=col_name, title=f'Unsupervised Classification\n(Threshold > {optimal_threshold:.2f})', size=1, ax=axs[2], show=False)
+pdf_non_tumor = pdf * responsibilities[:, class_non_tumor_idx]
+pdf_tumor = pdf * responsibilities[:, class_tumor_idx]
+
+ax1.plot(x_plot, pdf_non_tumor, color='blue', label='Non-Tumor Distribution', lw=2)
+ax1.plot(x_plot, pdf_tumor, color='red', label='Tumor Distribution', lw=2)
+
+# 画阈值垂直线
+ax1.axvline(optimal_threshold, color='green', linestyle='--', lw=2.5, 
+            label=f'Optimal Threshold = {optimal_threshold:.2f}')
+
+ax1.set_title('Malignant Fraction Distribution & GMM Fit')
+ax1.set_xlabel('SpaCET Malignant Fraction')
+ax1.set_ylabel('Density')
+ax1.legend()
+
+# -----------------
+# 子图 2: SpaCET 连续分数的空间分布
+# -----------------
+ax2 = plt.subplot(1, 3, 2)
+sc.pl.spatial(adata, color='Malignant', title='SpaCET Malignant Fraction', 
+              spot_size=170, cmap='Reds', ax=ax2, show=False)
+
+# -----------------
+# 子图 3: 使用自动阈值划分后的离散空间分布
+# -----------------
+ax3 = plt.subplot(1, 3, 3)
+sc.pl.spatial(adata, color=col_name, title=f'Unsupervised Classification\n(Threshold > {optimal_threshold:.2f})', 
+              spot_size=170, ax=ax3, show=False)
 
 plt.tight_layout()
 
-# 🔥 保存输出
+# ==========================================
+# 🔥 新增1：保存图片到指定路径（高清300dpi）
+# ==========================================
 img_save_path = os.path.join(SAVE_DIR, "GMM_Malignant_Threshold_Plot.png")
 plt.savefig(img_save_path, dpi=300, bbox_inches='tight')
-print(f"✅ 图片已保存至: {img_save_path}")
+print(f"\n✅ 图片已保存至: {img_save_path}")
+
 plt.show()
 
+# ==========================================
+# 🔥 新增2：保存肿瘤/非肿瘤划分标签为CSV
+# ==========================================
+label_save_path = os.path.join(SAVE_DIR, "GMM_Tumor_NonTumor_Pred_Labels.csv")
+# 保存Spot ID + 划分标签 + 原始Malignant分数
 label_df = adata.obs[[col_name, 'Malignant']].copy()
 label_df.index.name = "Spot_ID"
-label_df.to_csv(os.path.join(SAVE_DIR, "GMM_Tumor_NonTumor_Pred_Labels.csv"), encoding='utf-8-sig')
+label_df.to_csv(label_save_path, encoding='utf-8-sig')
+print(f"✅ 划分标签已保存至: {label_save_path}")
 
-pd.DataFrame({"Metric": ["Optimal_GMM_Threshold"], "Value": [round(optimal_threshold, 4)]}).to_csv(
-    os.path.join(SAVE_DIR, "GMM_Optimal_Threshold_Result.csv"), index=False, encoding='utf-8-sig')
-print("🎉 全部完成！所有文件已保存至指定文件夹")
+# ==========================================
+# 🔥 新增3：保存最优阈值结果为CSV
+# ==========================================
+threshold_save_path = os.path.join(SAVE_DIR, "GMM_Optimal_Threshold_Result.csv")
+threshold_df = pd.DataFrame({
+    "Metric": ["Optimal_GMM_Threshold"],
+    "Value": [round(optimal_threshold, 4)]
+})
+threshold_df.to_csv(threshold_save_path, index=False, encoding='utf-8-sig')
+print(f"✅ 阈值结果已保存至: {threshold_save_path}")
+
+print("\n🎉 全部完成！所有文件已保存至指定文件夹")
 
 # =========================================================
-# Cell 1: 全局可复现设置（必须放在最前面）
+# Cell 0: 全局可复现设置（必须放在最前面）
 # =========================================================
 import os
 import random
@@ -254,63 +329,38 @@ print("✅ NicheCompass 路径:", nc.__file__)
 print("✅ 当前 SEED:", SEED)
 
 # =========================================================
-# Cell 3: 从四元组文件构建代谢通讯轴知识库
+# Cell 3: 知识库提取与数据加载 (Step 1)
 # =========================================================
-from IPython.display import display
-import os
-import pandas as pd
+print("=== Step 1: 构建代谢通讯轴四元组知识库 ===")
 
-print("=== Step 1: 从文件加载代谢通讯轴四元组知识库 ===")
+# 1. 解析你的四元组知识库
+tmcn_csv = """TMCN_Name,Source_Pathways,Source_Genes,Target_Genes,Biologic_Meaning
+TMCN_Lactate_Axis,"Hypoxia,EGFR,PI3K,MAPK","SLC2A1,HK2,PKM,LDHA,LDHB,SLC16A3","SLC16A1,SLC16A7,HCAR1,HCAR2",乳酸_肿瘤酸化瓦伯格效应与基质反向代谢共生
+TMCN_Adenosine_Axis,"Hypoxia,TGFb,NFkB,MAPK","ENTPD1,ENTPD2,NT5E,CD38,ENPP1,NT5C2","ADORA1,ADORA2A,ADORA2B,ADORA3,SLC29A1,SLC29A2",腺苷_ATP水解级联驱动的强效免疫抑制与M2极化
+TMCN_PGE2_Axis,"NFkB,JAK-STAT,Hypoxia,MAPK,TNFa","PLA2G4A,PTGS2,PTGES,ABCC4,SLCO2A1","PTGER1,PTGER2,PTGER3,PTGER4",前列腺素E2_成纤维细胞激活与促癌炎症微环境重塑
+TMCN_Glutamine_Axis,"PI3K,MAPK,JAK-STAT,TGFb,WNT","GLUL,SLC38A1,SLC38A3,SLC38A5","SLC1A5,SLC7A5,SLC38A2,GLS,GLUD1",谷氨酰胺_基质向肿瘤供能的代谢寄生与大分子合成
+TMCN_Succinate_Axis,"Hypoxia,NFkB,TNFa","SLC13A2,SLC13A3,SLC25A10","SUCNR1",琥珀酸_缺血坏死区释放驱动的TAM致瘤极化与血管生成
+TMCN_Kynurenine_Axis,"JAK-STAT,NFkB,TGFb","IDO1,TDO2,KYNU,SLC7A5","AHR",犬尿氨酸_色氨酸剥夺与AHR介导的效应T细胞耗竭
+TMCN_ATP_Axis,"Hypoxia,p53,TNFa","PANX1,SLC17A9","P2RX7,P2RY2,P2RY11",胞外ATP_坏死边缘释放的促炎性危险信号(DAMP)传导
+TMCN_S1P_Axis,"NFkB,PI3K,MAPK","SPHK1,SPHK2,SPNS2","S1PR1,S1PR2,S1PR3",鞘氨醇-1-磷酸_脂质信号驱动的内皮血管生成与免疫趋化
+TMCN_LPA_Axis,"PI3K,MAPK,TGFb","ENPP2,PLA2G4A,LPCAT1","LPAR1,LPAR2,LPAR3,LPAR5",溶血磷脂酸_成纤维细胞基质重塑与肿瘤高侵袭性
+TMCN_Glutamate_Axis,"PI3K,MAPK,Hypoxia","GLS,SLC1A5,SLC7A11","GRM3,GRM5,GRIN1",谷氨酸_突触样代谢通讯与微环境神经可塑性
+"""
+axis_table = pd.read_csv(StringIO(tmcn_csv))
+AXES =[x.replace("TMCN_", "").replace("_Axis", "") for x in axis_table["TMCN_Name"]]
 
-# 1. 四元组文件路径
-axis_table_path = "/home/zhangjunyi/xiangmu/nichecompass-main/data/pre_data/siyuanzu/my_metabolite_network.csv"
-
-if not os.path.exists(axis_table_path):
-    raise FileNotFoundError(f"❌ 未找到四元组文件: {axis_table_path}")
-
-# 2. 读取四元组文件
-axis_table = pd.read_csv(axis_table_path, encoding="utf-8-sig")
-
-# 3. 检查必须列是否存在
-required_cols = [
-    "TMCN_Name",
-    "Source_Pathways",
-    "Source_Genes",
-    "Target_Genes",
-    "Biologic_Meaning"
-]
-
-missing_cols = [c for c in required_cols if c not in axis_table.columns]
-if len(missing_cols) > 0:
-    raise ValueError(f"❌ 四元组文件缺少必要列: {missing_cols}")
-
-# 4. 清理字符串空格，避免后面匹配失败
-for col in required_cols:
-    axis_table[col] = axis_table[col].astype(str).str.strip()
-
-# 5. 自动生成代谢轴名称
-AXES = [
-    x.replace("TMCN_", "").replace("_Axis", "")
-    for x in axis_table["TMCN_Name"]
-]
-
-# 6. 工具函数
+# 辅助函数：解析基因列表
 def split_items(x):
-    return [i.strip() for i in str(x).split(",") if i.strip()]
+    return[i.strip() for i in str(x).split(",") if i.strip()]
 
 def get_valid_genes(adata, genes):
-    return [g for g in genes if g in adata.var_names]
+    return[g for g in genes if g in adata.var_names]
 
-# 7. 加载带有 SpaCET 结果的空间转录组数据
-file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep2.h5ad"
+# 2. 加载带有 SpaCET 结果的空间转录组数据（必须读取 _with_SpaCET.h5ad）
+file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/Human_Prostate_Cancer/Human_Prostate_Cancer_annotated.h5ad"
 adata = sc.read_h5ad(file_path)
 
-
-print(f"✅ 四元组文件加载成功: {axis_table_path}")
-print(f"✅ 共读取到 {axis_table.shape[0]} 条代谢通讯轴")
-print(f"✅ AXES = {AXES}")
 print(f"✅ 数据加载成功: {adata.n_obs} spots, {adata.n_vars} genes")
-
 display(axis_table)
 
 # =========================================================
@@ -318,26 +368,30 @@ display(axis_table)
 # =========================================================
 print("=== Step 2: 计算 Spot 级连续分数 (绝对无监督解耦) ===")
 
-# 1. PROGENy (Pathway)
+# 1. 运行 PROGENy 提取 Pathway_score
 print("--> 正在计算 Pathway_score (PROGENy)...")
 net_progeny = dc.get_progeny(organism="human", top=500)
 dc.run_mlm(mat=adata, net=net_progeny, source="source", target="target", weight="weight", verbose=False, use_raw=False)
 df_pathway = dc.get_acts(adata, obsm_key="mlm_estimate").to_df()
-df_pathway.columns = [c.strip().replace("-", "_").replace(" ", "_") for c in df_pathway.columns]
+df_pathway.columns =[c.strip().replace("-", "_").replace(" ", "_") for c in df_pathway.columns]
 
-# 2. AUCell (Enzyme)
+# 2. 运行 AUCell 提取 Enzyme_score
 print("--> 正在计算 Enzyme_score (AUCell)...")
-enzyme_records = [{"source": row["TMCN_Name"].replace("TMCN_", "").replace("_Axis", ""), "target": g} 
-                  for _, row in axis_table.iterrows() for g in split_items(row["Source_Genes"]) if g in adata.var_names]
+enzyme_records =[]
+for _, row in axis_table.iterrows():
+    ax = row["TMCN_Name"].replace("TMCN_", "").replace("_Axis", "")
+    for g in split_items(row["Source_Genes"]):
+        if g in adata.var_names:
+            enzyme_records.append({"source": ax, "target": g})
 dc.run_aucell(mat=adata, net=pd.DataFrame(enzyme_records), source="source", target="target", min_n=1, verbose=False, use_raw=False)
 df_enzyme = dc.get_acts(adata, obsm_key="aucell_estimate").to_df()
 
-# 3. 归一化
+# 3. 对通路和酶进行 MinMax 归一化 (0~1)
 scaler = MinMaxScaler()
 df_pathway_scaled = pd.DataFrame(scaler.fit_transform(df_pathway), index=df_pathway.index, columns=df_pathway.columns)
 df_enzyme_scaled = pd.DataFrame(scaler.fit_transform(df_enzyme), index=df_enzyme.index, columns=df_enzyme.columns)
 
-# 4. Receptor & 综合打分
+# 4. 提取 Receptor_score 并计算 Sender & Receiver 最终分数
 print("--> 正在计算 Sender_score 与 Receiver_score...")
 def calc_receptor_score(genes):
     valid = get_valid_genes(adata, genes)
@@ -348,15 +402,24 @@ def calc_receptor_score(genes):
 
 for _, row in axis_table.iterrows():
     ax = row["TMCN_Name"].replace("TMCN_", "").replace("_Axis", "")
-    pathways = [p.strip().replace("-", "_").replace(" ", "_") for p in split_items(row["Source_Pathways"])]
+    pathways =[p.strip().replace("-", "_").replace(" ", "_") for p in split_items(row["Source_Pathways"])]
     target_genes = split_items(row["Target_Genes"])
     
-    valid_paths = [p for p in pathways if p in df_pathway_scaled.columns]
-    adata.obs[f"{ax}_Sender_Score"] = df_pathway_scaled[valid_paths].mean(axis=1).values * df_enzyme_scaled[ax].values
+    # 提取存在的通路
+    valid_paths =[p for p in pathways if p in df_pathway_scaled.columns]
+    
+    # Sender = Pathway (均值) * Enzyme
+    p_score = df_pathway_scaled[valid_paths].mean(axis=1).values
+    e_score = df_enzyme_scaled[ax].values
+    adata.obs[f"{ax}_Sender_Score"] = p_score * e_score
+    
+    # Receiver = Receptor 表达量归一化
     adata.obs[f"{ax}_Receiver_Score"] = calc_receptor_score(target_genes)
 
-print("✅ 所有连续分数提取完毕！")
-display(adata.obs[[c for c in adata.obs.columns if "Sender_Score" in c or "Receiver_Score" in c]].head())
+print("✅ 所有连续分数提取完毕！保存在 adata.obs 中。")
+# 预览前5行打分
+score_cols =[c for c in adata.obs.columns if "Sender_Score" in c or "Receiver_Score" in c]
+display(adata.obs[score_cols].head())
 
 # =========================================================
 # Cell 5: NicheCompass 无监督拓扑学习与过聚类
@@ -438,25 +501,25 @@ print(f"全量 nodes: {full_node_batch_size}")
 print(f"全量 edges: {full_edge_batch_size}")
 
 model.train(
-    n_epochs=125, n_epochs_all_gps=10, lr=1e-4, lambda_edge_recon=1e5,
+    n_epochs=30, n_epochs_all_gps=10, lr=1e-4, lambda_edge_recon=1e5,
     lambda_gene_expr_recon=100.0, lambda_l1_masked=0.0, edge_batch_size=full_edge_batch_size,
     node_batch_size=full_node_batch_size, n_sampled_neighbors=4, edge_val_ratio=0.0, node_val_ratio=0.0,
     use_cuda_if_available=True, verbose=False
-    
 )
-
-
+# =========================================================
+# 保存结果 (AnnData + 模型)
+# =========================================================
+import os
 # 5) 保存结果
-save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
-file_prefix = "SN048_A121573_Rep2"
+# -------------------------- 1. 设置保存路径 --------------------------
+save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My"
+file_prefix = "Human_Prostate_Cancer"
 os.makedirs(save_base_dir, exist_ok=True)
 
 adata_model.write_h5ad(os.path.join(save_base_dir, f"{file_prefix}.h5ad"))
-# model.save(os.path.join(save_base_dir, f"{file_prefix}_model"))
-# 修复后（添加 overwrite=True）
 model.save(
     os.path.join(save_base_dir, f"{file_prefix}_model"),
-    overwrite=True  # 🔥 核心修复：允许覆盖已有文件夹
+    overwrite=True
 )
 print("✅ [AnnData & Model] 结果已保存！\n=== Step 3 & 4 全部完成 ===")
 
@@ -470,8 +533,8 @@ import scanpy as sc
 import nichecompass as nc 
 
 # -------------------------- 1. 定义加载路径 (与保存路径完全一致) --------------------------
-save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
-file_prefix = "SN048_A121573_Rep2"
+save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My"
+file_prefix = "Human_Prostate_Cancer"
 
 # -------------------------- 2. 加载 AnnData 对象 --------------------------
 adata_load_path = os.path.join(save_base_dir, f"{file_prefix}.h5ad")
@@ -549,7 +612,7 @@ print(f"✅ 原生聚类完成：{adata_model.obs[native_cluster_key].nunique()}
 sc.pl.spatial(
     adata_model,
     color=native_cluster_key,
-    size=1,
+    spot_size=170,
     title="Native clusters (Leiden 0.4)",
     frameon=False
 )
@@ -687,7 +750,7 @@ if malig_col is None:
     raise KeyError("❌ 未找到 SpaCET 恶性分数字段，如 'Malignant'。")
 
 # 读取 SpaCET GMM 阈值
-gmm_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET/GMM_Optimal_Threshold_Result.csv"
+gmm_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET/GMM_Optimal_Threshold_Result.csv"
 gmm_df = pd.read_csv(gmm_csv)
 
 hard_tumor_threshold = float(
@@ -966,49 +1029,65 @@ print("   1. Niche_Annotation_PreFilter  -> 过滤前初始生态位")
 print("   2. Niche_Annotation            -> 经过 low_malig_gate 清洗后的最终生态位")
 
 # =========================================================
-# Cell 8: 绘制 10 种代谢物的空间代谢通讯潜力图
+# Cell 8: 绘制 10 种代谢物的空间代谢通讯潜力图 (连续分布)
 # =========================================================
-import os
 import matplotlib.pyplot as plt
 import scanpy as sc
+import os  # 新增：用于文件路径操作
 
 print("=== 附加分析: 生成十种代谢物空间代谢通讯潜力图 ===")
+print("注: 采用 Coupling_Score (Sender * 邻居Receiver) 作为有效代谢物浓度与作用场的推断指标")
 
+# ===================== 新增：定义图片保存路径 =====================
+# 你指定的保存根目录
+save_root_path = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My"
+# 自动创建目录（不存在则创建，存在不报错）
+os.makedirs(save_root_path, exist_ok=True)
+# 完整保存文件路径（命名为10种代谢物空间代谢通讯潜力图）
+save_image_path = os.path.join(save_root_path, "10_metabolites_concentration_gradient.png")
+# =================================================================
+
+# 1. 获取需要绘制的列名 (Coupling_Score 已经在上一步取了 log1p，非常适合梯度可视化)
 gradient_columns = [f"Coupling_{k}" for k in AXES]
-plot_titles = [f"{k} Gradient\n(Coupling Score)" for k in AXES]
 
+# 2. 为每张图设置好标题
+plot_titles =[f"{k} Gradient\n(Coupling Score)" for k in AXES]
+
+# 3. 设置绘图参数
+# 使用 'magma' 或 'inferno' 色系，这种暗底亮色的色谱非常适合展示类似“荧光染色”的浓度梯度
+cmap_choice = "magma" 
+
+# 4. 利用 scanpy 自带的多图排列功能绘制
 sc.pl.spatial(
-    adata_model, color=gradient_columns, cmap="magma", size=1, ncols=5, 
-    frameon=False, title=plot_titles, vmin=0, vmax='p99', show=False
+    adata_model,
+    color=gradient_columns,
+    cmap=cmap_choice,
+    size=1,              # 保持与你前面一致的 spot 大小
+    ncols=5,             # 每行放 5 张图，10 个轴正好 2 行
+    frameon=False,       # 去掉坐标轴边框，更美观
+    title=plot_titles,
+    vmin=0,              # 浓度最低为 0
+    vmax='p99',          # 截断最高 1% 的极端离群值，让主体梯度颜色更丰富
+    show=False           # 先不显示，稍后通过 plt.show() 统一控制
 )
 
+# 调整子图间距并展示
 plt.subplots_adjust(wspace=0.1, hspace=0.2)
-plt.gcf().set_size_inches(25, 10)
+fig = plt.gcf()
+fig.set_size_inches(25, 10) # 设置大画布，保证高分辨率
 
-# ===================== 新增：保存图片（按你的要求）=====================
-# 定义保存路径（完全按照你指定的路径）
-save_path = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
-# 确保文件夹存在（不存在自动创建）
-os.makedirs(save_path, exist_ok=True)
-# 保存文件名 + 完整路径
-save_full_path = os.path.join(save_path, "10种代谢物的空间代谢通讯潜力图.png")
-
-# 保存图片（高清、无截断）
-plt.savefig(
-    save_full_path,
-    dpi=300,          # 高清分辨率
-    bbox_inches="tight",  # 防止标题/图例被截断
-    pad_inches=0.1
-)
-# ====================================================================
+# ===================== 新增：保存图片（必须在 plt.show() 之前！） =====================
+# dpi=300：高分辨率；bbox_inches='tight'：裁剪多余白边；pad_inches=0.1：轻微内边距
+plt.savefig(save_image_path, dpi=300, bbox_inches='tight', pad_inches=0.1)
+print(f"✅ 图片已保存至：{save_image_path}")
+# ====================================================================================
 
 plt.show()
 
-print(f"✅ 10 种代谢物的空间代谢通讯潜力图绘制完毕！")
-print(f"📁 图片已保存至：{save_full_path}")
+print("✅ 10 种代谢物的空间代谢通讯潜力图绘制完毕！")
 
 # =========================================================
-# Cell 9：名称规范化（不平滑、不改边界）
+# Cell 9：名称规范化（不平滑、不改边界）【与当前 Cell 10 完全对齐版】
 # =========================================================
 print("\n--> 4. 规范化命名并绘制最终 TMCN 地图...")
 
@@ -1019,6 +1098,10 @@ import seaborn as sns
 # 如果之前有旧列，先删掉，避免历史结果污染
 if "Final_Niche_Type" in adata_model.obs.columns:
     adata_model.obs.drop(columns=["Final_Niche_Type"], inplace=True)
+
+# 必须先有 Cell 7 生成的 Niche_Annotation
+if "Niche_Annotation" not in adata_model.obs.columns:
+    raise KeyError("❌ 未找到 Niche_Annotation。请先运行 Cell 7。")
 
 def map_niche_name(raw_name):
     raw_name = str(raw_name)
@@ -1087,25 +1170,25 @@ sc.pl.spatial(
     legend_loc="right margin",
     show=True
 )
+# /home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My/Human_Prostate_Cancer_annotated
+# ⚠️ 这里必须改成和当前 Cell 10 完全一致的路径
+save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My"
+file_prefix = "Human_Prostate_Cancer_annotated"
 
-
-# 6. 保存结果（原有逻辑不变）
-save_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
-os.makedirs(save_dir, exist_ok=True)
-adata_save_path = os.path.join(save_dir, "SN048_A121573_Rep2_NicheCompassAndmy_Final.h5ad")
+os.makedirs(save_base_dir, exist_ok=True)
+adata_save_path = os.path.join(save_base_dir, f"{file_prefix}.h5ad")
 adata_model.write(adata_save_path)
+
 print(f"✅ 阶段三执行完毕！结果保存至: {adata_save_path}")
 
-# =========================================================
-# Cell 10: 最终层级生态位构建 + 病理二分类 vs 最终生态位对照图
-# 目标：
-# 1. 按 SpaCET + Final_Niche_Type 生成 Level1_Macro_Region 和 Level2_Micro_Niche
-# 2. 严格按照 ARI 计算时的病理映射规则生成 Pathology_Binary_ARI
-# 3. 只绘制两个图：
-#    左图：病理注释 Tumor / Non-Tumor 二分类
-#    右图：你的最终生态位划分结果 Level2_Micro_Niche
-# =========================================================
+# 保险检查
+adata_check = sc.read_h5ad(adata_save_path)
+print("✅ 保存后检查列是否存在：", "Final_Niche_Type" in adata_check.obs.columns)
+print("✅ 当前保存文件中的相关列：", [c for c in adata_check.obs.columns if c in ["Niche_Annotation", "Final_Niche_Type"]])
 
+# =========================================================
+# Cell 10: 跨模态标签对齐与最终层级生态位构建 (SpaCET + NicheCompass)
+# =========================================================
 import anndata as ad
 import pandas as pd
 import numpy as np
@@ -1113,17 +1196,21 @@ import scanpy as sc
 import matplotlib.pyplot as plt
 import os
 
-print("=== 阶段四: 最终层级生态位构建 + 病理二分类对照图 ===")
+print("=== 阶段四: 跨模态标签联合 (Macro-Micro Hierarchical Niche) ===")
 
 # ==========================================
-# 1. 路径配置
+# 1. 路径配置 (读取数据与设置输出)
 # ==========================================
-path_h5ad_niche = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My/SN048_A121573_Rep2_NicheCompassAndmy_Final.h5ad"
+# 你的 NicheCompass 最终产物 (也就是我们要覆盖保存的原始文件)
+path_h5ad_niche = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My/Human_Prostate_Cancer_annotated.h5ad"
 
-path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET/GMM_Tumor_NonTumor_Pred_Labels.csv"
+# 你上一步保存的 SpaCET GMM 预测结果 CSV
+path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET/GMM_Tumor_NonTumor_Pred_Labels.csv"
 
-SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
+# 指定输出文件夹（自动创建，用于存CSV和图片）
+SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My"
 os.makedirs(SAVE_DIR, exist_ok=True)
+
 
 print("--> 1. 正在加载 NicheCompass + TMCN 结果...")
 adata = ad.read_h5ad(path_h5ad_niche)
@@ -1133,7 +1220,7 @@ print(f"✅ 数据加载成功: {adata.n_obs} spots, {adata.n_vars} genes")
 # ==========================================
 # 2. 检查关键列
 # ==========================================
-required_cols = ["pathology_annotation", "Final_Niche_Type"]
+required_cols = ["Pathology_Annotation", "Final_Niche_Type"]
 
 for col in required_cols:
     if col not in adata.obs.columns:
@@ -1179,9 +1266,10 @@ print("--> 3. 正在按照 ARI 计算策略生成病理 Tumor / Non-Tumor 二分
 
 # 这个映射必须与 Cell 11 计算 ARI 时保持一致
 gt_map_int = {
-    'tumor': 1, 'tumor&stroma_IC med to high': 1, 'stroma_fibroblastic_IC high': 1,
-    'epithelium&submucosa': 0, 'non neo epithelium': 0, 'submucosa': 0, 
-    'IC aggregregate_submucosa': 0
+   'Tumor': 1,
+    'Invasive': 1,
+    'Surrounding tumor': 0,
+    'Healthy': 0
 }
 
 gt_map_str = {
@@ -1189,7 +1277,7 @@ gt_map_str = {
     0: "Pathology_Non_Tumor"
 }
 
-patho_clean = adata.obs["pathology_annotation"].astype(str).str.strip()
+patho_clean = adata.obs["Pathology_Annotation"].astype(str).str.strip()
 pathology_numeric = patho_clean.map(gt_map_int)
 
 adata.obs["Pathology_Binary_ARI"] = pathology_numeric.map(gt_map_str)
@@ -1407,7 +1495,7 @@ adata.obs.drop(columns=cols_to_drop, inplace=True, errors="ignore")
 
 print(f"✅ 精简完成，共移除 {len(cols_to_drop)} 个中间列。")
 print("当前保留的关键结果列包括：")
-print("  - pathology_annotation")
+print("  - Pathology_Annotation")
 print("  - Pathology_Binary_ARI")
 print("  - Level1_Macro_Region")
 print("  - Level2_Micro_Niche")
@@ -1461,7 +1549,7 @@ print("=" * 60)
 # =========================================================
 # 1. 加载数据
 # =========================================================
-path_h5ad = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My/SN048_A121573_Rep2_NicheCompassAndmy_Final.h5ad"
+path_h5ad = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My/Human_Prostate_Cancer_annotated.h5ad"
 adata = sc.read_h5ad(path_h5ad)
 
 # =========================================================
@@ -1529,27 +1617,28 @@ def calculate_spatial_consistency(adata_obj, label_col="Level2_Micro_Niche"):
 # =========================================================
 print("\n🟢 [1/4] 正在计算宏观监督指标 Level1_Macro_Region vs Ground Truth...")
 
+# 前列腺癌：仅 Invasive carcinoma 作为肿瘤，其余病理区域作为非肿瘤
+pathology_col = "Pathology_Annotation"
+
+if pathology_col not in adata.obs.columns:
+    raise KeyError(
+        f"❌ 未找到病理注释列 {pathology_col}。\n"
+        f"当前 adata.obs.columns 为:\n{adata.obs.columns.tolist()}"
+    )
+
+all_pathology_labels = adata.obs[pathology_col].dropna().astype(str).unique()
+
 gt_map = {
-    "tumor": 1,
-    "tumor&stroma_IC med to high": 1,
-    "stroma_fibroblastic_IC high": 1,
-
-    "epithelium&submucosa": 0,
-    "non neo epithelium": 0,
-    "submucosa": 0,
-    "IC aggregregate_submucosa": 0,
-
-    # 兼容可能的拼写
-    "IC aggregate_submucosa": 0,
-    "IC aggregate connective tissue": 0
+    label: (1 if label == "Invasive carcinoma" else 0)
+    for label in all_pathology_labels
 }
 
 pred_map = {
-    "Healthy_Region": 0,
-    "Tumor_Region": 1
+    "Tumor_Region": 1,
+    "Healthy_Region": 0
 }
 
-gt_raw = adata.obs["pathology_annotation"].astype(str).str.strip().map(gt_map).astype(float).values
+gt_raw = adata.obs[pathology_col].astype(str).str.strip().map(gt_map).astype(float).values
 pred_raw = adata.obs["Level1_Macro_Region"].astype(str).map(pred_map).astype(float).values
 
 valid_mask = (~np.isnan(gt_raw)) & (~np.isnan(pred_raw))
@@ -1557,11 +1646,15 @@ y_true = gt_raw[valid_mask]
 y_pred = pred_raw[valid_mask]
 
 if len(y_true) == 0:
-    raise ValueError("❌ 未发现有效 Spot，请检查 pathology_annotation 与 gt_map 是否匹配。")
+    available_labels = adata.obs[pathology_col].dropna().unique()
+    raise ValueError(
+        "❌ 未发现有效 Spot，请检查 Pathology_Annotation 是否包含 Invasive carcinoma。\n"
+        f"当前可用标签: {available_labels}"
+    )
 
 print(f"  --> 参与宏观评估的有效 Spot 数量: {len(y_true)}")
-print(f"  --> 病理 Tumor 数量: {int(np.sum(y_true == 1))}")
-print(f"  --> 病理 Non-Tumor 数量: {int(np.sum(y_true == 0))}")
+print(f"  --> 病理 Invasive carcinoma 数量: {int(np.sum(y_true == 1))}")
+print(f"  --> 病理 Other regions 数量: {int(np.sum(y_true == 0))}")
 
 ari_val = adjusted_rand_score(y_true, y_pred)
 f1_val = f1_score(y_true, y_pred, pos_label=1.0, average="binary")
@@ -1677,7 +1770,7 @@ print(f"  --> Spatial Consistency Score: {spatial_consistency_val:.4f}")
 # =========================================================
 # 模块五：汇总保存 CSV
 # =========================================================
-SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
+SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/Human_Prostate_Cancer/SpaCET_And_My"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 csv_save_path = os.path.join(SAVE_DIR, "评估结果_SpaCET_And_My.csv")

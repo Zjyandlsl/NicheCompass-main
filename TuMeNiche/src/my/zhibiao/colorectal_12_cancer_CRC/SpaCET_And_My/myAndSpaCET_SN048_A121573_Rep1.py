@@ -1,17 +1,14 @@
 # 自动提取自 Jupyter Notebook
-# 源文件：/home/zhangjunyi/xiangmu/nichecompass-main/TuMeNiche/src/my/zhibiao/train_test/colorectal_12_cancer_CRC/myAndSpaCET_SN048_A121573_Rep2.ipynb
+# 源文件：/home/zhangjunyi/xiangmu/nichecompass-main/TuMeNiche/src/my/zhibiao/colorectal_12_cancer_CRC/SpaCET_And_My/myAndSpaCET_SN048_A121573_Rep1.ipynb
 
-# =========================================================
-# Cell 0-1: 使用SpaCET得出spot反卷积结果和肿瘤非肿瘤标签
-# =========================================================
 import anndata as ad
 import pandas as pd
 import os
 
 print("="*60)
 # 1. 仅设置原始文件路径（删除输出路径，无新文件）
-path_h5ad_original = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep2.h5ad"
-path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/SpaCET_R_Result/12_colorectal_cancer_CRC/SN048_A121573_Rep2/SpaCET_CellFractions_Result.csv"
+path_h5ad_original = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep1.h5ad"
+path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/SpaCET_R_Result/12_colorectal_cancer_CRC/SN048_A121573_Rep1/SpaCET_CellFractions_Result.csv"
 
 # 2. 读取原始 h5ad
 print("正在读取原始 h5ad 文件...")
@@ -42,17 +39,17 @@ elif len(common_spots) < adata.n_obs:
     print(f"⚠️  警告：有 {adata.n_obs - len(common_spots)} 个 Spots 在 SpaCET 结果中未找到（已过滤）。")
     adata = adata[common_spots].copy()
 
-# 5. 合并数据到 adata.obs（核心注入逻辑）
+# 5. 合并数据到 adata.obs（核心修复：自动覆盖重复列）
 print("正在将CSV数据注入原始h5ad...")
 spacet_df_aligned = spacet_df.reindex(adata.obs_names)
 
-# 🔥 核心修复：自动删除重复列，实现覆盖效果
-overlap_cols = spacet_df_aligned.columns.intersection(adata.obs.columns)
-if len(overlap_cols) > 0:
-    print(f"⚠️ 发现重复列，将自动覆盖：{overlap_cols.tolist()}")
-    adata.obs = adata.obs.drop(columns=overlap_cols)  # 删除旧列
+# 🔥 修复关键：删除原有重复列，实现覆盖效果
+duplicate_cols = spacet_df_aligned.columns.intersection(adata.obs.columns)
+if len(duplicate_cols) > 0:
+    print(f"⚠️ 发现 {len(duplicate_cols)} 个重复列，将自动覆盖更新")
+    adata.obs = adata.obs.drop(columns=duplicate_cols)
 
-# 合并新数据（无冲突，安全执行）
+# 无冲突合并
 adata.obs = adata.obs.join(spacet_df_aligned)
 
 print("✅ 注入完成！adata.obs 中新增了以下列：")
@@ -71,7 +68,6 @@ if annot_col in adata.obs.columns:
     raw_annots = adata.obs[annot_col].astype(str).str.strip()
     
     # 2. 定义无效标签：包括 'exclude'、'nan'、'NaN'、'None' 和纯空格空值
-    # 同时利用 adata.obs[annot_col].notna() 过滤掉真正的 Pandas NaN
     invalid_tags = ['exclude', 'nan', 'NaN', 'None', '', 'NA']
     
     valid_mask = (adata.obs[annot_col].notna()) & (~raw_annots.isin(invalid_tags))
@@ -99,7 +95,7 @@ adata.write_h5ad(path_h5ad_original)
 print("🎉 全部完成！SpaCET 结果已注入，且已物理剔除无标注区域。")
 
 # =========================================================
-# Cell 0-1: SpaCET 恶性分数 GMM 无监督自适应阈值计算
+# Cell 1-1: SpaCET 恶性分数 GMM 无监督自适应阈值计算
 # =========================================================
 import anndata as ad
 import pandas as pd
@@ -111,11 +107,11 @@ from sklearn.mixture import GaussianMixture
 import os
 
 # 🔥 固定输出路径
-SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET"
+SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # 1. 读取数据
-file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep2.h5ad"
+file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep1.h5ad"
 print("正在加载数据...")
 adata = ad.read_h5ad(file_path)
 
@@ -178,7 +174,213 @@ pd.DataFrame({"Metric": ["Optimal_GMM_Threshold"], "Value": [round(optimal_thres
 print("🎉 全部完成！所有文件已保存至指定文件夹")
 
 # =========================================================
-# Cell 1: 全局可复现设置（必须放在最前面）
+# Cell 1-2: 基准评估 (病理注释 vs 硬阈值切割) - 全维度指标升级版
+# 适配：结直肠癌 (CRC) 数据集 + pathology_annotation 列
+# =========================================================
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import squidpy as sq
+import matplotlib.pyplot as plt
+import os
+import warnings
+from sklearn.metrics import (
+    adjusted_rand_score, 
+    f1_score, 
+    silhouette_score, 
+    davies_bouldin_score
+)
+
+warnings.filterwarnings("ignore")
+
+# ==========================================
+# 0. 自动寻找 SpaCET 肿瘤占比列 (智能防报错)
+# ==========================================
+possible_names = ['Malignant', 'Tumor', 'malignant', 'tumor', 'Cancer', 'cancer']
+spacet_col = None
+
+for name in possible_names:
+    if name in adata.obs.columns:
+        spacet_col = name
+        break
+
+if spacet_col is None:
+    print("❌ 严重错误: 在 adata.obs 中没有找到 SpaCET 预测的肿瘤细胞比例列！")
+    print("当前所有的列名如下，请检查 Cell 1 是否成功合并了数据：")
+    print(adata.obs.columns.tolist())
+    raise KeyError("Missing SpaCET fraction column.")
+else:
+    print(f"✅ 成功锁定 SpaCET 肿瘤反卷积比例列: '{spacet_col}'")
+
+# ===================== 核心修改：自定义病理标签映射 =====================
+# 1. 严格按照你指定的规则定义结直肠癌 (CRC) 映射
+gt_map_int = {
+    'tumor': 1,
+    'tumor&stroma_IC med to high': 1,
+    'stroma_fibroblastic_IC high': 1,
+    'epithelium&submucosa': 0,
+    'non neo epithelium': 0,
+    'submucosa': 0,
+    'IC aggregregate_submucosa': 0
+}
+
+gt_map_str = {
+    'tumor': 'Tumor_Region',
+    'tumor&stroma_IC med to high': 'Tumor_Region',
+    'stroma_fibroblastic_IC high': 'Tumor_Region',
+    'epithelium&submucosa': 'Non_Tumor_Region',
+    'non neo epithelium': 'Non_Tumor_Region',
+    'submucosa': 'Non_Tumor_Region',
+    'IC aggregregate_submucosa': 'Non_Tumor_Region'
+}
+
+# 2. 从 pathology_annotation 生成真实标签（专属 CRC 的列名）
+adata.obs['Ground_Truth_Binary'] = adata.obs['pathology_annotation'].map(gt_map_str).astype('category')
+gt_labels_for_math = adata.obs['pathology_annotation'].map(gt_map_int).values
+
+# ==========================================
+# 3. 生成预测标签 (SpaCET 恶性分数阈值切割)
+# ==========================================
+# 自动读取上一步的最优阈值，如果没有则使用 0.5282 作为默认
+threshold = optimal_threshold
+
+adata.obs[f'Pred_Threshold_{threshold:.4f}'] = np.where(
+    adata.obs[spacet_col] > threshold, 
+    'Predicted_Tumor', 
+    'Predicted_Non_Tumor'
+)
+adata.obs[f'Pred_Threshold_{threshold:.4f}'] = adata.obs[f'Pred_Threshold_{threshold:.4f}'].astype('category')
+pred_labels_for_math = (adata.obs[spacet_col] > threshold).astype(float).values
+
+# ==========================================
+# 4. 空间可视化对比
+# ==========================================
+print("\n===== 正在绘制空间分布对比图 =====")
+try:
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+    sc.pl.spatial(adata, color='Ground_Truth_Binary', title='Ground Truth (Pathologist)', size=1, ax=axs[0], show=False)
+    sc.pl.spatial(adata, color=spacet_col, title=f'SpaCET {spacet_col} Fraction', size=1, cmap='Reds', ax=axs[1], show=False)
+    sc.pl.spatial(adata, color=f'Pred_Threshold_{threshold:.4f}', title=f'Predicted (>{threshold:.4f})', size=1, ax=axs[2], show=False)
+    plt.tight_layout()
+    plt.show()
+except Exception as e:
+    print(f"可视化失败: {e}")
+
+# ==========================================
+# 5. 全维度空间与特征指标综合评估 (SpaCET Baseline)
+# ==========================================
+print("\n" + "="*60)
+print("🚀 开始执行 SpaCET 基线模型的全维度指标评估...")
+print("="*60)
+
+# --- 模块一：宏观边界评估 (Supervised: ARI, F1) ---
+valid_mask = ~np.isnan(gt_labels_for_math)  # 过滤空值
+y_true = gt_labels_for_math[valid_mask]
+y_pred = pred_labels_for_math[valid_mask]
+
+ari_val = adjusted_rand_score(y_true, y_pred)
+f1_val = f1_score(y_true, y_pred, pos_label=1.0, average='binary')
+
+print(f"🟢 [1/3] 宏观边界评估 (Supervised):")
+print(f"  --> 有效参与计算的 Spot 数量: {len(y_true)}")
+print(f"  --> Adjusted Rand Index (ARI): {ari_val:.4f}")
+print(f"  --> F1-Score (Tumor Region): {f1_val:.4f}")
+
+# --- 模块二：微观特征纯度评估 (Unsupervised: ASW, SS-C, DBI) ---
+print(f"\n🔵 [2/3] 微观特征纯度评估 (Unsupervised):")
+if 'X_pca' not in adata.obsm:
+    print("  --> 正在计算 PCA 作为底层转录组特征空间...")
+    sc.pp.normalize_total(adata, target_sum=1e4)
+    sc.pp.log1p(adata)
+    sc.tl.pca(adata, svd_solver='arpack')
+
+X_features = adata.obsm['X_pca']
+
+asw_val = silhouette_score(X_features, pred_labels_for_math)
+dbi_val = davies_bouldin_score(X_features, pred_labels_for_math)
+
+# SS-C Proxy：使用 SpaCET 的连续分数计算自身划分的紧凑度
+X_spacet_feature = adata.obs[spacet_col].values.reshape(-1, 1)
+ssc_val = silhouette_score(X_spacet_feature, pred_labels_for_math)
+
+print(f"  --> Average Silhouette Width (ASW): {asw_val:.4f}")
+print(f"  --> Silhouette Score on {spacet_col} Fraction (SS-C Proxy): {ssc_val:.4f}")
+print(f"  --> Davies-Bouldin Index (DBI): {dbi_val:.4f}")
+
+# --- 模块三：空间物理聚集度 (Spatial Topology: Moran's I) ---
+print(f"\n🟣 [3/3] 物理空间连贯性指标 (Moran's I):")
+if 'spatial_connectivities' not in adata.obsp:
+    print("  --> 正在计算空间邻接图...")
+    sq.gr.spatial_neighbors(adata, coord_type="generic", spatial_key="spatial", n_neighs=6)
+
+tmp_adata = sc.AnnData(X=pred_labels_for_math.reshape(-1, 1).astype(float))
+tmp_adata.obs_names = adata.obs_names
+tmp_adata.var_names = ['SpaCET_Tumor_Pred']
+tmp_adata.obsp['spatial_connectivities'] = adata.obsp['spatial_connectivities']
+
+sq.gr.spatial_autocorr(tmp_adata, mode="moran", genes=['SpaCET_Tumor_Pred'], n_perms=100, n_jobs=-1)
+moran_val = tmp_adata.uns["moranI"].loc['SpaCET_Tumor_Pred', 'I']
+
+print(f"  --> 总体平均 Moran's Index (Moran's I): {moran_val:.4f}")
+
+# ==========================================
+# 6. 汇总并保存所有指标至 CSV
+# ==========================================
+# 指定保存路径
+SAVE_PATH = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET"
+os.makedirs(SAVE_PATH, exist_ok=True)
+csv_save_path = os.path.join(SAVE_PATH, "评估结果_SpaCET_Baseline.csv")
+
+# 构建与你自定义方法一致的结果表格
+results_df = pd.DataFrame({
+    "Metric Name": [
+        "Adjusted Rand Index", 
+        "F1-Score", 
+        "Average Silhouette Width", 
+        "Silhouette Score on Coupling Scores", 
+        "Davies-Bouldin Index", 
+        "Moran's Index"
+    ],
+    "Abbreviation": ["ARI", "F1", "ASW", "SS-C", "DBI", "Moran's I"],
+    "Value": [
+        round(ari_val, 4), 
+        round(f1_val, 4), 
+        round(asw_val, 4), 
+        round(ssc_val, 4), 
+        round(dbi_val, 4), 
+        round(moran_val, 4)
+    ],
+    "Ideal Trend": [
+        "Closer to 1", "Closer to 1", "Closer to 1", 
+        "Closer to 1", "Closer to 0", "Closer to 1 (>0)"
+    ],
+    "Evaluation Dimension": [
+        "Macro Boundary (Supervised)", 
+        "Macro Boundary (Supervised)", 
+        "Micro Pureness (Unsupervised)", 
+        "Micro Pureness (Unsupervised)", 
+        "Micro Pureness (Unsupervised)", 
+        "Spatial Topology (Physical)"
+    ]
+})
+
+results_df.to_csv(csv_save_path, index=False, encoding="utf-8-sig")
+
+print("\n" + "="*60)
+print(f"🎉 结直肠癌 SpaCET 基准测试完毕！所有指标已保存至：\n   {csv_save_path}")
+print("="*60)
+display(results_df)
+
+# [探索选项] 额外保存一份最优阈值探索记录（可选保留）
+best_t, best_ari = max(
+    ((t, adjusted_rand_score(gt_labels_for_math[valid_mask], (adata.obs[spacet_col] > t).astype(float).values[valid_mask])) 
+     for t in np.arange(0.1, 0.9, 0.05)), 
+    key=lambda x: x[1]
+)
+print(f"💡 [探索] 对于该数据集，使 ARI 最高的硬切阈值其实是 {best_t:.2f} (此时最高 ARI = {best_ari:.4f})")
+
+# =========================================================
+# Cell 0: 全局可复现设置（必须放在最前面）
 # =========================================================
 import os
 import random
@@ -254,63 +456,35 @@ print("✅ NicheCompass 路径:", nc.__file__)
 print("✅ 当前 SEED:", SEED)
 
 # =========================================================
-# Cell 3: 从四元组文件构建代谢通讯轴知识库
+# Cell 3: 构建代谢通讯轴四元组知识库
 # =========================================================
 from IPython.display import display
-import os
-import pandas as pd
 
-print("=== Step 1: 从文件加载代谢通讯轴四元组知识库 ===")
+print("=== Step 1: 构建代谢通讯轴四元组知识库 ===")
 
-# 1. 四元组文件路径
-axis_table_path = "/home/zhangjunyi/xiangmu/nichecompass-main/data/pre_data/siyuanzu/my_metabolite_network.csv"
+tmcn_csv = """TMCN_Name,Source_Pathways,Source_Genes,Target_Genes,Biologic_Meaning
+TMCN_Lactate_Axis,"Hypoxia,EGFR,PI3K,MAPK","SLC2A1,HK2,PKM,LDHA,LDHB,SLC16A3","SLC16A1,SLC16A7,HCAR1,HCAR2",乳酸_肿瘤酸化瓦伯格效应与基质反向代谢共生
+TMCN_Adenosine_Axis,"Hypoxia,TGFb,NFkB,MAPK","ENTPD1,ENTPD2,NT5E,CD38,ENPP1,NT5C2","ADORA1,ADORA2A,ADORA2B,ADORA3,SLC29A1,SLC29A2",腺苷_ATP水解级联驱动的强效免疫抑制与M2极化
+TMCN_PGE2_Axis,"NFkB,JAK-STAT,Hypoxia,MAPK,TNFa","PLA2G4A,PTGS2,PTGES,ABCC4,SLCO2A1","PTGER1,PTGER2,PTGER3,PTGER4",前列腺素E2_成纤维细胞激活与促癌炎症微环境重塑
+TMCN_Glutamine_Axis,"PI3K,MAPK,JAK-STAT,TGFb,WNT","GLUL,SLC38A1,SLC38A3,SLC38A5","SLC1A5,SLC7A5,SLC38A2,GLS,GLUD1",谷氨酰胺_基质向肿瘤供能的代谢寄生与大分子合成
+TMCN_Succinate_Axis,"Hypoxia,NFkB,TNFa","SLC13A2,SLC13A3,SLC25A10","SUCNR1",琥珀酸_缺血坏死区释放驱动的TAM致瘤极化与血管生成
+TMCN_Kynurenine_Axis,"JAK-STAT,NFkB,TGFb","IDO1,TDO2,KYNU,SLC7A5","AHR",犬尿氨酸_色氨酸剥夺与AHR介导的效应T细胞耗竭
+TMCN_ATP_Axis,"Hypoxia,p53,TNFa","PANX1,SLC17A9","P2RX7,P2RY2,P2RY11",胞外ATP_坏死边缘释放的促炎性危险信号(DAMP)传导
+TMCN_S1P_Axis,"NFkB,PI3K,MAPK","SPHK1,SPHK2,SPNS2","S1PR1,S1PR2,S1PR3",鞘氨醇-1-磷酸_脂质信号驱动的内皮血管生成与免疫趋化
+TMCN_LPA_Axis,"PI3K,MAPK,TGFb","ENPP2,PLA2G4A,LPCAT1","LPAR1,LPAR2,LPAR3,LPAR5",溶血磷脂酸_成纤维细胞基质重塑与肿瘤高侵袭性
+TMCN_Glutamate_Axis,"PI3K,MAPK,Hypoxia","GLS,SLC1A5,SLC7A11","GRM3,GRM5,GRIN1",谷氨酸_突触样代谢通讯与微环境神经可塑性
+"""
+axis_table = pd.read_csv(StringIO(tmcn_csv))
+AXES =[x.replace("TMCN_", "").replace("_Axis", "") for x in axis_table["TMCN_Name"]]
 
-if not os.path.exists(axis_table_path):
-    raise FileNotFoundError(f"❌ 未找到四元组文件: {axis_table_path}")
+def split_items(x): return [i.strip() for i in str(x).split(",") if i.strip()]
+def get_valid_genes(adata, genes): return [g for g in genes if g in adata.var_names]
 
-# 2. 读取四元组文件
-axis_table = pd.read_csv(axis_table_path, encoding="utf-8-sig")
-
-# 3. 检查必须列是否存在
-required_cols = [
-    "TMCN_Name",
-    "Source_Pathways",
-    "Source_Genes",
-    "Target_Genes",
-    "Biologic_Meaning"
-]
-
-missing_cols = [c for c in required_cols if c not in axis_table.columns]
-if len(missing_cols) > 0:
-    raise ValueError(f"❌ 四元组文件缺少必要列: {missing_cols}")
-
-# 4. 清理字符串空格，避免后面匹配失败
-for col in required_cols:
-    axis_table[col] = axis_table[col].astype(str).str.strip()
-
-# 5. 自动生成代谢轴名称
-AXES = [
-    x.replace("TMCN_", "").replace("_Axis", "")
-    for x in axis_table["TMCN_Name"]
-]
-
-# 6. 工具函数
-def split_items(x):
-    return [i.strip() for i in str(x).split(",") if i.strip()]
-
-def get_valid_genes(adata, genes):
-    return [g for g in genes if g in adata.var_names]
-
-# 7. 加载带有 SpaCET 结果的空间转录组数据
-file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep2.h5ad"
+# 加载带有 SpaCET 结果的空间转录组数据
+file_path = "/home/zhangjunyi/xiangmu/nichecompass-main/datasets/12_colorectal_cancer_CRC/12_colorectal_cancer_CRC_h5ad/SN048_A121573_Rep1.h5ad"
 adata = sc.read_h5ad(file_path)
 
-
-print(f"✅ 四元组文件加载成功: {axis_table_path}")
-print(f"✅ 共读取到 {axis_table.shape[0]} 条代谢通讯轴")
-print(f"✅ AXES = {AXES}")
 print(f"✅ 数据加载成功: {adata.n_obs} spots, {adata.n_vars} genes")
-
 display(axis_table)
 
 # =========================================================
@@ -410,7 +584,6 @@ else:
 if counts_key: adata_model.layers[counts_key] = mat
 else: adata_model.X = mat
 
-
 # 3) 空间图 + LR先验
 sq.gr.spatial_neighbors(adata_model, coord_type="generic", spatial_key="spatial", n_neighs=8)
 cache_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/cache_nichenet"
@@ -430,34 +603,20 @@ model = nc.models.NicheCompass(
     latent_key="nichecompass_latent", conv_layer_encoder="gcnconv", active_gp_thresh_ratio=0.01,
 )
 
-# 全图训练所需的完整规模
-full_node_batch_size = adata_model.n_obs
-full_edge_batch_size = int(adata_model.obsp["spatial_connectivities"].nnz)
-
-print(f"全量 nodes: {full_node_batch_size}")
-print(f"全量 edges: {full_edge_batch_size}")
-
 model.train(
-    n_epochs=125, n_epochs_all_gps=10, lr=1e-4, lambda_edge_recon=1e5,
-    lambda_gene_expr_recon=100.0, lambda_l1_masked=0.0, edge_batch_size=full_edge_batch_size,
-    node_batch_size=full_node_batch_size, n_sampled_neighbors=4, edge_val_ratio=0.0, node_val_ratio=0.0,
+    n_epochs=50, n_epochs_all_gps=10, lr=1e-4, lambda_edge_recon=1e5,
+    lambda_gene_expr_recon=100.0, lambda_l1_masked=0.0, edge_batch_size=64,
+    node_batch_size=128, n_sampled_neighbors=4, edge_val_ratio=0.0, node_val_ratio=0.0,
     use_cuda_if_available=True, verbose=False
-    
 )
 
-
 # 5) 保存结果
-save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
-file_prefix = "SN048_A121573_Rep2"
+save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My"
+file_prefix = "SN048_A121573_Rep1"
 os.makedirs(save_base_dir, exist_ok=True)
 
 adata_model.write_h5ad(os.path.join(save_base_dir, f"{file_prefix}.h5ad"))
-# model.save(os.path.join(save_base_dir, f"{file_prefix}_model"))
-# 修复后（添加 overwrite=True）
-model.save(
-    os.path.join(save_base_dir, f"{file_prefix}_model"),
-    overwrite=True  # 🔥 核心修复：允许覆盖已有文件夹
-)
+model.save(os.path.join(save_base_dir, f"{file_prefix}_model"))
 print("✅ [AnnData & Model] 结果已保存！\n=== Step 3 & 4 全部完成 ===")
 
 # ===================== Cell 6 =====================
@@ -469,9 +628,8 @@ import scanpy as sc
 # 假设 nichecompass 已正确导入为 nc
 import nichecompass as nc 
 
-# -------------------------- 1. 定义加载路径 (与保存路径完全一致) --------------------------
-save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
-file_prefix = "SN048_A121573_Rep2"
+save_base_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My"
+file_prefix = "SN048_A121573_Rep1"
 
 # -------------------------- 2. 加载 AnnData 对象 --------------------------
 adata_load_path = os.path.join(save_base_dir, f"{file_prefix}.h5ad")
@@ -541,7 +699,6 @@ sc.tl.leiden(
     resolution=0.6,
     random_state=SEED
 )
-
 
 print(f"✅ 原生聚类完成：{adata_model.obs[native_cluster_key].nunique()} 类")
 
@@ -687,7 +844,7 @@ if malig_col is None:
     raise KeyError("❌ 未找到 SpaCET 恶性分数字段，如 'Malignant'。")
 
 # 读取 SpaCET GMM 阈值
-gmm_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET/GMM_Optimal_Threshold_Result.csv"
+gmm_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET/GMM_Optimal_Threshold_Result.csv"
 gmm_df = pd.read_csv(gmm_csv)
 
 hard_tumor_threshold = float(
@@ -966,13 +1123,13 @@ print("   1. Niche_Annotation_PreFilter  -> 过滤前初始生态位")
 print("   2. Niche_Annotation            -> 经过 low_malig_gate 清洗后的最终生态位")
 
 # =========================================================
-# Cell 8: 绘制 10 种代谢物的空间代谢通讯潜力图
+# Cell 8: 绘制 10 种代谢物的空间浓度梯度图
 # =========================================================
 import os
 import matplotlib.pyplot as plt
 import scanpy as sc
 
-print("=== 附加分析: 生成十种代谢物空间代谢通讯潜力图 ===")
+print("=== 附加分析: 生成十种代谢物空间通讯浓度梯度图 ===")
 
 gradient_columns = [f"Coupling_{k}" for k in AXES]
 plot_titles = [f"{k} Gradient\n(Coupling Score)" for k in AXES]
@@ -987,11 +1144,11 @@ plt.gcf().set_size_inches(25, 10)
 
 # ===================== 新增：保存图片（按你的要求）=====================
 # 定义保存路径（完全按照你指定的路径）
-save_path = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
+save_path = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My"
 # 确保文件夹存在（不存在自动创建）
 os.makedirs(save_path, exist_ok=True)
 # 保存文件名 + 完整路径
-save_full_path = os.path.join(save_path, "10种代谢物的空间代谢通讯潜力图.png")
+save_full_path = os.path.join(save_path, "10种代谢物的浓度梯度图.png")
 
 # 保存图片（高清、无截断）
 plt.savefig(
@@ -1004,7 +1161,7 @@ plt.savefig(
 
 plt.show()
 
-print(f"✅ 10 种代谢物的空间代谢通讯潜力图绘制完毕！")
+print(f"✅ 10 种代谢物的浓度梯度图绘制完毕！")
 print(f"📁 图片已保存至：{save_full_path}")
 
 # =========================================================
@@ -1088,24 +1245,16 @@ sc.pl.spatial(
     show=True
 )
 
-
-# 6. 保存结果（原有逻辑不变）
-save_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
+save_dir = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My"
 os.makedirs(save_dir, exist_ok=True)
-adata_save_path = os.path.join(save_dir, "SN048_A121573_Rep2_NicheCompassAndmy_Final.h5ad")
+adata_save_path = os.path.join(save_dir, "SN048_A121573_Rep1_NicheCompassAndmy_Final.h5ad")
 adata_model.write(adata_save_path)
+
 print(f"✅ 阶段三执行完毕！结果保存至: {adata_save_path}")
 
 # =========================================================
-# Cell 10: 最终层级生态位构建 + 病理二分类 vs 最终生态位对照图
-# 目标：
-# 1. 按 SpaCET + Final_Niche_Type 生成 Level1_Macro_Region 和 Level2_Micro_Niche
-# 2. 严格按照 ARI 计算时的病理映射规则生成 Pathology_Binary_ARI
-# 3. 只绘制两个图：
-#    左图：病理注释 Tumor / Non-Tumor 二分类
-#    右图：你的最终生态位划分结果 Level2_Micro_Niche
+# Cell 10: 跨模态标签对齐与最终层级生态位构建 (SpaCET + NicheCompass)
 # =========================================================
-
 import anndata as ad
 import pandas as pd
 import numpy as np
@@ -1113,326 +1262,191 @@ import scanpy as sc
 import matplotlib.pyplot as plt
 import os
 
-print("=== 阶段四: 最终层级生态位构建 + 病理二分类对照图 ===")
+print("=== 阶段四: 跨模态标签联合 (Macro-Micro Hierarchical Niche) ===")
 
 # ==========================================
-# 1. 路径配置
+# 1. 路径配置 (读取数据与设置输出)
 # ==========================================
-path_h5ad_niche = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My/SN048_A121573_Rep2_NicheCompassAndmy_Final.h5ad"
+# 你的 NicheCompass 最终产物 (也就是我们要覆盖保存的原始文件)
+path_h5ad_niche = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My/SN048_A121573_Rep1_NicheCompassAndmy_Final.h5ad"
 
-path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET/GMM_Tumor_NonTumor_Pred_Labels.csv"
+# 你上一步保存的 SpaCET GMM 预测结果 CSV
+path_spacet_csv = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET/GMM_Tumor_NonTumor_Pred_Labels.csv"
 
-SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
+# 指定输出文件夹（自动创建，用于存CSV和图片）
+SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-print("--> 1. 正在加载 NicheCompass + TMCN 结果...")
+# ==========================================
+# 2. 读取并合并数据
+# ==========================================
+print("--> 1. 正在加载并对齐数据...")
 adata = ad.read_h5ad(path_h5ad_niche)
-
-print(f"✅ 数据加载成功: {adata.n_obs} spots, {adata.n_vars} genes")
-
-# ==========================================
-# 2. 检查关键列
-# ==========================================
-required_cols = ["pathology_annotation", "Final_Niche_Type"]
-
-for col in required_cols:
-    if col not in adata.obs.columns:
-        raise KeyError(
-            f"❌ 缺少关键列: {col}\n"
-            f"当前 adata.obs.columns 为:\n{adata.obs.columns.tolist()}"
-        )
-
-# ==========================================
-# 3. 读取并合并 SpaCET GMM 预测标签
-# ==========================================
-print("--> 2. 正在读取并合并 SpaCET GMM 预测标签...")
-
 spacet_df = pd.read_csv(path_spacet_csv, index_col=0)
 
-spacet_pred_cols = [c for c in spacet_df.columns if c.startswith("Unsupervised_Pred_")]
+# 动态获取 GMM 预测的那一列的名字 (例如 'Unsupervised_Pred_0.45')
+spacet_pred_col = [c for c in spacet_df.columns if c.startswith('Unsupervised_Pred_')][0]
 
-if len(spacet_pred_cols) == 0:
-    raise KeyError(
-        "❌ 在 SpaCET GMM 预测 CSV 中没有找到以 'Unsupervised_Pred_' 开头的列。"
-    )
-
-spacet_pred_col = spacet_pred_cols[0]
-
-# 防止重复运行 Cell 10 时 join 报错
-if spacet_pred_col in adata.obs.columns:
-    print(f"⚠️ 检测到 adata.obs 中已存在 {spacet_pred_col}，将先删除旧列后重新合并。")
-    adata.obs.drop(columns=[spacet_pred_col], inplace=True)
-
-adata.obs = adata.obs.join(spacet_df[[spacet_pred_col]], how="left")
-
-if adata.obs[spacet_pred_col].isna().sum() > 0:
-    print(
-        f"⚠️ 警告：{adata.obs[spacet_pred_col].isna().sum()} 个 spots 没有匹配到 SpaCET GMM 预测标签。"
-    )
-
-print(f"✅ 成功导入 SpaCET GMM 预测标签列: {spacet_pred_col}")
+# 合并到 adata.obs (利用索引自动对齐)
+adata.obs = adata.obs.join(spacet_df[[spacet_pred_col]])
+print(f"    [对齐完成] 成功导入 SpaCET 预测标签: {spacet_pred_col}")
 
 # ==========================================
-# 4. 严格按照 ARI 计算策略生成病理二分类标签
+# 3. 严格执行核心合并规则 (并集逻辑)
 # ==========================================
-print("--> 3. 正在按照 ARI 计算策略生成病理 Tumor / Non-Tumor 二分类标签...")
+print("--> 2. 正在执行宏观-微观联合推断逻辑...")
 
-# 这个映射必须与 Cell 11 计算 ARI 时保持一致
-gt_map_int = {
-    'tumor': 1, 'tumor&stroma_IC med to high': 1, 'stroma_fibroblastic_IC high': 1,
-    'epithelium&submucosa': 0, 'non neo epithelium': 0, 'submucosa': 0, 
-    'IC aggregregate_submucosa': 0
-}
+# 初始化新列，默认全为健康区域
+adata.obs['Level1_Macro_Region'] = 'Healthy_Region'
+adata.obs['Level2_Micro_Niche'] = 'Healthy_Region'
 
-gt_map_str = {
-    1: "Pathology_Tumor",
-    0: "Pathology_Non_Tumor"
-}
+# 提取关键判断条件
+is_spacet_tumor = adata.obs[spacet_pred_col] == 'Predicted_Tumor'
+is_niche_quiescent = adata.obs['Final_Niche_Type'] == 'TMCN_Quiescent'
+# 新增：判断是否为过渡态
+is_niche_transitional = adata.obs['Final_Niche_Type'] == 'TMCN_Transitional'
 
-patho_clean = adata.obs["pathology_annotation"].astype(str).str.strip()
-pathology_numeric = patho_clean.map(gt_map_int)
 
-adata.obs["Pathology_Binary_ARI"] = pathology_numeric.map(gt_map_str)
 
-# 没有进入 ARI 映射规则的 spot，不强行划为 Tumor 或 Non-Tumor
-adata.obs["Pathology_Binary_ARI"] = adata.obs["Pathology_Binary_ARI"].fillna("Unmapped_for_ARI")
-adata.obs["Pathology_Binary_ARI"] = pd.Categorical(
-    adata.obs["Pathology_Binary_ARI"],
-    categories=[
-        "Pathology_Tumor",
-        "Pathology_Non_Tumor",
-        "Unmapped_for_ARI"
-    ],
-    ordered=False
-)
+# ----------------- 规则 1: Level 1 (Tumor vs Healthy) ✅ 已修改 -----------------
+# 【你的新需求】SpaCET预测为肿瘤  OR  (微环境不是休眠态 且 不是过渡态) → 肿瘤区域
+tumor_mask = is_spacet_tumor | ( (~is_niche_quiescent) & (~is_niche_transitional) )
+adata.obs.loc[tumor_mask, 'Level1_Macro_Region'] = 'Tumor_Region'
 
-print("✅ 病理二分类标签生成完成，类别统计如下：")
-print(adata.obs["Pathology_Binary_ARI"].value_counts())
 
-# ==========================================
-# 5. 生成最终 Level1 / Level2 层级生态位
-# ==========================================
-print("--> 4. 正在执行 SpaCET + TMCN 层级生态位整合逻辑...")
 
-# 初始化
-adata.obs["Level1_Macro_Region"] = "Healthy_Region"
-adata.obs["Level2_Micro_Niche"] = "Healthy_Region"
+# ----------------- 规则 2: Level 2 (微型代谢生态位) -----------------
+# 🔥 核心修复：强制转为普通字符串(str)，打破 Categorical 字典的限制
+final_niche_str = adata.obs['Final_Niche_Type'].astype(str)
 
-# 关键判断条件
-is_spacet_tumor = adata.obs[spacet_pred_col].astype(str) == "Predicted_Tumor"
+# 重新定义目标掩码：包含 Quiescent (休眠) 或 Transitional (过渡态)
+is_quiescent_or_transitional = (final_niche_str == 'TMCN_Quiescent') | (final_niche_str == 'TMCN_Transitional')
 
-final_niche_str = adata.obs["Final_Niche_Type"].astype(str)
-
-is_niche_quiescent = final_niche_str == "TMCN_Quiescent"
-is_niche_transitional = final_niche_str == "TMCN_Transitional"
-is_quiescent_or_transitional = is_niche_quiescent | is_niche_transitional
-
-# ----------------- Level 1: 宏观 Tumor / Healthy -----------------
-# SpaCET 预测为 Tumor
-# OR
-# TMCN 不是 Quiescent 且不是 Transitional
-# => Tumor_Region
-tumor_mask = is_spacet_tumor | (~is_quiescent_or_transitional)
-
-adata.obs.loc[tumor_mask, "Level1_Macro_Region"] = "Tumor_Region"
-adata.obs["Level1_Macro_Region"] = adata.obs["Level1_Macro_Region"].astype("category")
-
-# ----------------- Level 2: 最终详细生态位 -----------------
-# 1. 真正活跃的 TMCN 生态位直接保留
+# 1. 真正活跃的代谢区 (排除了休眠和过渡态)：直接保留其详细的多轴/单轴名称
 active_niche_mask = ~is_quiescent_or_transitional
-adata.obs.loc[active_niche_mask, "Level2_Micro_Niche"] = final_niche_str[active_niche_mask]
+adata.obs.loc[active_niche_mask, 'Level2_Micro_Niche'] = final_niche_str[active_niche_mask]
 
-# 2. SpaCET 判为 Tumor 但 TMCN 是 Quiescent / Transitional
-#    统一视作肿瘤内部代谢休眠 / 耗竭生态位
-target_tumor_quiescent_mask = is_spacet_tumor & is_quiescent_or_transitional
-adata.obs.loc[target_tumor_quiescent_mask, "Level2_Micro_Niche"] = "TMCN_Quiescent"
+# 2. 【你的新逻辑】将 SpaCET 预测为 Tumor 且 代谢状态为 Quiescent 或 Transitional 的区域，统一视作 TMCN_Quiescent (代谢耗竭/坏死核心)
+target_tumor_mask = is_spacet_tumor & is_quiescent_or_transitional
+adata.obs.loc[target_tumor_mask, 'Level2_Micro_Niche'] = 'TMCN_Quiescent'
 
-adata.obs["Level2_Micro_Niche"] = adata.obs["Level2_Micro_Niche"].astype("category")
+# 🔥 写入完成后，为了方便后续 Scanpy 画图，重新将这列转换回 Category 格式
+adata.obs['Level2_Micro_Niche'] = adata.obs['Level2_Micro_Niche'].astype('category')
 
-print("✅ Level1_Macro_Region 与 Level2_Micro_Niche 已生成。")
-print("\nLevel1_Macro_Region 统计：")
-print(adata.obs["Level1_Macro_Region"].value_counts())
+print("    [逻辑应用完毕] 成功生成 Level1_Macro_Region 与 Level2_Micro_Niche (已将肿瘤内过渡区并入休眠区)。")
 
-print("\nLevel2_Micro_Niche 统计：")
-print(adata.obs["Level2_Micro_Niche"].value_counts())
+
+
+# 2. 将 SpaCET 预测为 Tumor 且 你的结果为 TMCN_Quiescent 的区域，视作 TMCN_Quiescent
+quiescent_tumor_mask = is_spacet_tumor & is_niche_quiescent
+adata.obs.loc[quiescent_tumor_mask, 'Level2_Micro_Niche'] = 'TMCN_Quiescent'
+
+print("    [逻辑应用完毕] 成功生成 Level1_Macro_Region 与 Level2_Micro_Niche。")
 
 # ==========================================
-# 6. 只绘制两个图：病理二分类 vs 最终生态位
+# 4. 可视化检查
 # ==========================================
-print("--> 5. 正在绘制病理二分类 vs 最终生态位对照图...")
+print("--> 3. 正在生成最终层级空间生态位地图...")
 
-# 病理二分类配色
-pathology_palette = {
-    "Pathology_Tumor": "#d62728",
-    "Pathology_Non_Tumor": "#1f77b4",
-    "Unmapped_for_ARI": "#d9d9d9"
+macro_palette = {
+    "Tumor_Region": "#d62728",    
+    "Healthy_Region": "#aec7e8"   
 }
 
-# 最终生态位配色
 base_micro_palette = {
-    "TMCN_Lactate_Axis": "#d62728",
-    "TMCN_Adenosine_Axis": "#1f77b4",
-    "TMCN_PGE2_Axis": "#ff7f0e",
-    "TMCN_Glutamine_Axis": "#2ca02c",
-    "TMCN_Succinate_Axis": "#9467bd",
-    "TMCN_Kynurenine_Axis": "#e377c2",
-    "TMCN_ATP_Axis": "#17becf",
-    "TMCN_S1P_Axis": "#7f7f7f",
-    "TMCN_LPA_Axis": "#ff9896",
-    "TMCN_Glutamate_Axis": "#fada5e",
+    "TMCN_Lactate_Axis": "#d62728",        
+    "TMCN_Adenosine_Axis": "#1f77b4",      
+    "TMCN_PGE2_Axis": "#ff7f0e",           
+    "TMCN_Glutamine_Axis": "#2ca02c",      
+    "TMCN_Succinate_Axis": "#9467bd",      
+    "TMCN_Kynurenine_Axis": "#e377c2",     
+    "TMCN_ATP_Axis": "#17becf",            
+    "TMCN_S1P_Axis": "#7f7f7f",            
+    "TMCN_LPA_Axis": "#ff9896",            
+    "TMCN_Glutamate_Axis": "#fada5e",      
     "TMCN_Transitional": "#bcbd22",
-    "TMCN_Quiescent": "#333333",
-    "Healthy_Region": "#f0f0f0"
+    "TMCN_Quiescent": "#333333",           
+    "Healthy_Region": "#f0f0f0"            
 }
 
-multi_axis_colors = [
-    "#8c564b", "#8b008b", "#008080", "#ff1493",
-    "#000080", "#ff8c00", "#4682b4", "#556b2f",
-    "#a65628", "#984ea3", "#4daf4a", "#377eb8"
-]
+multi_axis_colors = ["#8c564b", "#8b008b", "#008080", "#ff1493", "#000080", "#ff8c00", "#4682b4", "#556b2f"]
+
+active_macro_colors = {k: macro_palette[k] for k in adata.obs['Level1_Macro_Region'].unique()}
 
 active_micro_colors = {}
-multi_idx = 0
-
-for cat in adata.obs["Level2_Micro_Niche"].cat.categories:
-    cat_str = str(cat)
-
-    if cat_str in base_micro_palette:
-        active_micro_colors[cat_str] = base_micro_palette[cat_str]
-    elif cat_str.startswith("Multi_Axis"):
-        active_micro_colors[cat_str] = multi_axis_colors[multi_idx % len(multi_axis_colors)]
-        multi_idx += 1
+color_idx = 0
+for cat in adata.obs['Level2_Micro_Niche'].unique():
+    if cat in base_micro_palette:
+        active_micro_colors[cat] = base_micro_palette[cat]
+    elif "Multi_Axis" in cat:
+        active_micro_colors[cat] = multi_axis_colors[color_idx % len(multi_axis_colors)]
+        color_idx += 1
     else:
-        active_micro_colors[cat_str] = "#000000"
+        active_micro_colors[cat] = "#000000"
 
-fig, axs = plt.subplots(1, 2, figsize=(18, 7))
-
-sc.pl.spatial(
-    adata,
-    color="Pathology_Binary_ARI",
-    size=1,
-    title="Pathology Annotation\nTumor vs Non-Tumor (ARI Mapping)",
-    palette=pathology_palette,
-    frameon=False,
-    legend_loc="right margin",
-    ax=axs[0],
-    show=False
-)
-
-sc.pl.spatial(
-    adata,
-    color="Level2_Micro_Niche",
-    size=1,
-    title="Final TMCN Niche Classification",
-    palette=active_micro_colors,
-    frameon=False,
-    legend_loc="right margin",
-    ax=axs[1],
-    show=False
-)
-
+fig, axs = plt.subplots(1, 2, figsize=(16, 6))
+sc.pl.spatial(adata, color='Level1_Macro_Region', size=1, title="Level 1: Macro Region", 
+              palette=active_macro_colors, frameon=False, ax=axs[0], show=False)
+sc.pl.spatial(adata, color='Level2_Micro_Niche', size=1, title="Level 2: Purified Metabolic Niches", 
+              palette=active_micro_colors, frameon=False, ax=axs[1], show=False)
 plt.tight_layout()
-
-comparison_fig_path = os.path.join(
-    SAVE_DIR,
-    "Pathology_TumorNonTumor_vs_Final_TMCN_Niche.png"
-)
-
-plt.savefig(
-    comparison_fig_path,
-    dpi=300,
-    bbox_inches="tight",
-    pad_inches=0.1
-)
-
 plt.show()
 
-print(f"✅ 两联对照图已保存至：{comparison_fig_path}")
-
 # ==========================================
-# 7. 提取并保存：最终详细生态位各代谢轴高活性比例
+# 5. 提取并保存：最终详细生态位 (Level 2) 各代谢轴高活性比例
 # ==========================================
-print("--> 6. 正在计算最终详细生态位的代谢轴高活性 Spot 比例...")
+print("\n--> 4. 正在计算最终详细生态位的代谢轴高活性 Spot 比例...")
 
 axes_active_cols = [c for c in adata.obs.columns if c.startswith("Active_")]
+active_frac_df = adata.obs.groupby('Level2_Micro_Niche')[axes_active_cols].mean().reset_index()
 
-if len(axes_active_cols) > 0:
-    active_frac_df = (
-        adata.obs
-        .groupby("Level2_Micro_Niche", observed=False)[axes_active_cols]
-        .mean()
-        .reset_index()
-    )
+rename_map = {c: c.replace("Active_", "active_fraction_") for c in axes_active_cols}
+active_frac_df.rename(columns=rename_map, inplace=True)
+active_frac_df.rename(columns={'Level2_Micro_Niche': 'Micro_Niche_Cluster'}, inplace=True)
 
-    rename_map = {c: c.replace("Active_", "active_fraction_") for c in axes_active_cols}
-    active_frac_df.rename(columns=rename_map, inplace=True)
-    active_frac_df.rename(columns={"Level2_Micro_Niche": "Micro_Niche_Cluster"}, inplace=True)
-
-    fraction_csv_path = os.path.join(SAVE_DIR, "Level2_Micro_Niche_Active_Fractions.csv")
-    active_frac_df.to_csv(fraction_csv_path, index=False, encoding="utf-8-sig")
-
-    print(f"✅ 各代谢轴高活性比例已保存至：{fraction_csv_path}")
-else:
-    print("⚠️ 未检测到 Active_ 开头的代谢轴活性列，跳过 active fraction 统计。")
+fraction_csv_path = os.path.join(SAVE_DIR, "Level2_Micro_Niche_Active_Fractions.csv")
+active_frac_df.to_csv(fraction_csv_path, index=False)
+print(f"✅ 各代谢轴突破高活性阈值的 spot 比例已保存至: \n   {fraction_csv_path}")
 
 # ==========================================
-# 8. 精简 h5ad 文件，只保留核心结果列
+# 6. 精简 h5ad 文件，只保留目标核心列
 # ==========================================
-print("--> 7. 正在精简 adata.obs 冗余中间特征...")
+print("\n--> 5. 正在精简 adata.obs 冗余中间特征，提取纯净版结果...")
 
 drop_keywords = [
-    "Sender_Score",
-    "Receiver_Score",
-    "Coupling_",
-    "Active_",
-    "Quiet_",
-    "Cluster_Active_Frac",
-    "nichecompass_",
-    "latent_leiden",
-    "Pred_Threshold_",
-    "Unsupervised_Pred_",
-    "Niche_Annotation",
-    "Niche_Type",
-    "Final_Niche_Type",
-    "Ground_Truth"
+    "Sender_Score", "Receiver_Score", "Coupling_", "Active_", "Quiet_", 
+    "Cluster_Active_Frac", "nichecompass_", "latent_leiden", 
+    "Pred_Threshold_", "Unsupervised_Pred_", "Niche_Annotation", 
+    "Niche_Type", "Final_Niche_Type", "Ground_Truth"
 ]
 
 cols_to_drop = []
-
 for c in adata.obs.columns:
     if any(k in c for k in drop_keywords):
         cols_to_drop.append(c)
 
-adata.obs.drop(columns=cols_to_drop, inplace=True, errors="ignore")
-
-print(f"✅ 精简完成，共移除 {len(cols_to_drop)} 个中间列。")
-print("当前保留的关键结果列包括：")
-print("  - pathology_annotation")
-print("  - Pathology_Binary_ARI")
-print("  - Level1_Macro_Region")
-print("  - Level2_Micro_Niche")
+adata.obs.drop(columns=cols_to_drop, inplace=True, errors='ignore')
+print(f"    [精简完成] 共移除了 {len(cols_to_drop)} 个生化推断中间列。")
 
 # ==========================================
-# 9. 覆盖保存最终 h5ad
+# 7. 【关键修改】覆盖保存回原 h5ad 文件
 # ==========================================
+# 直接使用开头加载的 path_h5ad_niche，不新建文件
 adata.write_h5ad(path_h5ad_niche)
 
-print("\n🎉 Cell 10 执行完成！")
-print(f"✅ 最终 h5ad 已覆盖保存至：{path_h5ad_niche}")
-print(f"✅ 病理二分类 vs 最终生态位对照图已保存至：{comparison_fig_path}")
+print(f"\n🎉 终极纯净版数据已成功覆盖保存至原始文件:\n   {path_h5ad_niche}")
 print("======================================================")
-print("📌 本 Cell 10 只生成一个两联图：")
-print("  左图：病理注释 Tumor / Non-Tumor，严格按照 ARI 映射规则")
-print("  右图：你的最终 Level2_Micro_Niche 生态位划分结果")
+print("📌 该最终 h5ad 文件的 adata.obs 中保留的列严格符合你的要求：")
+print("  1. 原始基础列及病理注释")
+print("  2. SpaCET 反卷积的所有细胞成分分数 (被永远合并在内了)")
+print("  3. 最终简略版生态位: 'Level1_Macro_Region' (Tumor/Healthy)")
+print("  4. 最终详细版生态位: 'Level2_Micro_Niche' (单轴/多轴/休眠等)")
 print("======================================================")
 
 # =========================================================
-# Cell 11: 空间多维全栈指标综合评估
-# 新增:
-# NMI, AMI, Homogeneity, Completeness, V-measure, Spatial Consistency Score
-# 不计算 Spatial Permutation Decay Rate
+# Cell 11: 顶级生信学者专属 - 空间多维全栈指标综合评估
+# 涵盖宏观物理边界 (ARI, F1) + 微观特征纯度 (ASW, SS-C, DBI) + 空间物理聚集度 (Moran's I)
 # =========================================================
-
 import scanpy as sc
 import squidpy as sq
 import pandas as pd
@@ -1440,324 +1454,181 @@ import numpy as np
 import os
 import warnings
 from sklearn.metrics import (
-    adjusted_rand_score,
-    normalized_mutual_info_score,
-    adjusted_mutual_info_score,
-    homogeneity_score,
-    completeness_score,
-    v_measure_score,
-    f1_score,
-    silhouette_score,
-    silhouette_samples,
+    adjusted_rand_score, 
+    f1_score, 
+    silhouette_score, 
+    silhouette_samples, 
     davies_bouldin_score
 )
 
 warnings.filterwarnings("ignore")
 
-print("=" * 60)
+print("="*60)
 print("🚀 开始执行全维度空间与特征指标综合评估...")
-print("=" * 60)
+print("="*60)
 
-# =========================================================
-# 1. 加载数据
-# =========================================================
-path_h5ad = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My/SN048_A121573_Rep2_NicheCompassAndmy_Final.h5ad"
+# 1. 加载数据 (假设直接使用你内存中的 adata，或者重新读取)
+# 如果你是接在 Cell 11 后面运行，此时内存中已经有 adata。如果需要重新读取，请取消注释下一行：
+path_h5ad = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/colorectal_12_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My/SN048_A121573_Rep1_NicheCompassAndmy_Final.h5ad"
 adata = sc.read_h5ad(path_h5ad)
 
 # =========================================================
-# 工具函数
+# 模块一：宏观边界评估 (Supervised: ARI, F1)
 # =========================================================
-def safe_silhouette_score(X, labels):
-    labels = np.asarray(labels).astype(str)
-    valid = pd.Series(labels).notna().values
-    X = X[valid]
-    labels = labels[valid]
-    vc = pd.Series(labels).value_counts()
-    keep_classes = vc[vc >= 2].index
-    keep_mask = np.isin(labels, keep_classes)
-    X = X[keep_mask]
-    labels = labels[keep_mask]
-    if len(np.unique(labels)) < 2 or X.shape[0] <= len(np.unique(labels)):
-        return np.nan, None, keep_mask
-    sample_vals = silhouette_samples(X, labels)
-    return float(np.mean(sample_vals)), sample_vals, keep_mask
+print("\n🟢 [1/3] 正在计算宏观监督指标 (Level 1 vs Ground Truth)...")
 
-def safe_davies_bouldin_score(X, labels):
-    labels = np.asarray(labels).astype(str)
-    vc = pd.Series(labels).value_counts()
-    keep_classes = vc[vc >= 2].index
-    keep_mask = np.isin(labels, keep_classes)
-    X = X[keep_mask]
-    labels = labels[keep_mask]
-    if len(np.unique(labels)) < 2:
-        return np.nan
-    return float(davies_bouldin_score(X, labels))
-
-def calculate_spatial_consistency(adata_obj, label_col="Level2_Micro_Niche"):
-    if "spatial_connectivities" not in adata_obj.obsp:
-        print("  --> 未检测到 spatial_connectivities，正在重构空间邻接图...")
-        sq.gr.spatial_neighbors(
-            adata_obj,
-            coord_type="generic",
-            spatial_key="spatial",
-            n_neighs=6
-        )
-
-    conn = adata_obj.obsp["spatial_connectivities"].tocsr()
-    labels = adata_obj.obs[label_col].astype(str).values
-
-    same_neighbor_fracs = []
-
-    for i in range(conn.shape[0]):
-        start = conn.indptr[i]
-        end = conn.indptr[i + 1]
-        neigh_idx = conn.indices[start:end]
-
-        if len(neigh_idx) == 0:
-            continue
-
-        same_frac = np.mean(labels[neigh_idx] == labels[i])
-        same_neighbor_fracs.append(same_frac)
-
-    if len(same_neighbor_fracs) == 0:
-        return np.nan
-
-    return float(np.mean(same_neighbor_fracs))
-
-# =========================================================
-# 模块一：宏观边界评估
-# =========================================================
-print("\n🟢 [1/4] 正在计算宏观监督指标 Level1_Macro_Region vs Ground Truth...")
-
+# 严格保留你的肿瘤/正常映射规则
 gt_map = {
-    "tumor": 1,
-    "tumor&stroma_IC med to high": 1,
-    "stroma_fibroblastic_IC high": 1,
-
-    "epithelium&submucosa": 0,
-    "non neo epithelium": 0,
-    "submucosa": 0,
-    "IC aggregregate_submucosa": 0,
-
-    # 兼容可能的拼写
-    "IC aggregate_submucosa": 0,
-    "IC aggregate connective tissue": 0
+    'tumor': 1, 'tumor&stroma_IC med to high': 1, 'stroma_fibroblastic_IC high': 1,
+    'epithelium&submucosa': 0, 'non neo epithelium': 0, 'submucosa': 0, 
+    'IC aggregregate_submucosa': 0
 }
+pred_map = {'Healthy_Region': 0}
 
-pred_map = {
-    "Healthy_Region": 0,
-    "Tumor_Region": 1
-}
+# 映射并清理无效点 (NaN)
+gt_raw = adata.obs['pathology_annotation'].map(gt_map).astype(float).values
+pred_raw = adata.obs['Level1_Macro_Region'].map(pred_map).fillna(1.0).astype(float).values
 
-gt_raw = adata.obs["pathology_annotation"].astype(str).str.strip().map(gt_map).astype(float).values
-pred_raw = adata.obs["Level1_Macro_Region"].astype(str).map(pred_map).astype(float).values
-
-valid_mask = (~np.isnan(gt_raw)) & (~np.isnan(pred_raw))
+valid_mask = ~np.isnan(gt_raw)
 y_true = gt_raw[valid_mask]
 y_pred = pred_raw[valid_mask]
 
-if len(y_true) == 0:
-    raise ValueError("❌ 未发现有效 Spot，请检查 pathology_annotation 与 gt_map 是否匹配。")
-
-print(f"  --> 参与宏观评估的有效 Spot 数量: {len(y_true)}")
-print(f"  --> 病理 Tumor 数量: {int(np.sum(y_true == 1))}")
-print(f"  --> 病理 Non-Tumor 数量: {int(np.sum(y_true == 0))}")
-
+# 计算 ARI 和 F1
 ari_val = adjusted_rand_score(y_true, y_pred)
-f1_val = f1_score(y_true, y_pred, pos_label=1.0, average="binary")
-
-nmi_val = normalized_mutual_info_score(y_true, y_pred)
-ami_val = adjusted_mutual_info_score(y_true, y_pred)
-homogeneity_val = homogeneity_score(y_true, y_pred)
-completeness_val = completeness_score(y_true, y_pred)
-v_measure_val = v_measure_score(y_true, y_pred)
+f1_val = f1_score(y_true, y_pred, pos_label=1.0, average='binary')
 
 print(f"  --> Adjusted Rand Index (ARI): {ari_val:.4f}")
-print(f"  --> F1-Score: {f1_val:.4f}")
-print(f"  --> Normalized Mutual Information (NMI): {nmi_val:.4f}")
-print(f"  --> Adjusted Mutual Information (AMI): {ami_val:.4f}")
-print(f"  --> Homogeneity Score: {homogeneity_val:.4f}")
-print(f"  --> Completeness Score: {completeness_val:.4f}")
-print(f"  --> V-measure Score: {v_measure_val:.4f}")
+print(f"  --> F1-Score (Tumor Region): {f1_val:.4f}")
 
 # =========================================================
-# 模块二：微观特征纯度评估
+# 模块二：微观特征纯度评估 (Unsupervised: ASW, SS-C, DBI)
 # =========================================================
-print("\n🔵 [2/4] 正在计算微观特征纯度指标 Level2_Micro_Niche...")
+print("\n🔵 [2/3] 正在计算微观特征纯度指标 (Level 2 内部逻辑自洽)...")
 
-if "nichecompass_latent" in adata.obsm:
-    X_features = adata.obsm["nichecompass_latent"]
-    print("  --> 使用 NicheCompass latent 空间作为特征矩阵。")
+# 寻找合适的底层特征矩阵 X
+if 'nichecompass_latent' in adata.obsm:
+    X_features = adata.obsm['nichecompass_latent']
+    print("  --> 使用 NicheCompass Latent 空间作为特征矩阵。")
 else:
-    print("  --> 未发现 nichecompass_latent，使用 PCA 特征空间。")
-    if "X_pca" not in adata.obsm:
+    print("  --> 未发现 Latent 矩阵，自动降维原始基因表达谱 (PCA) 作为公平特征对照...")
+    if 'X_pca' not in adata.obsm:
         sc.pp.normalize_total(adata, target_sum=1e4)
         sc.pp.log1p(adata)
-        sc.tl.pca(adata, svd_solver="arpack")
-    X_features = adata.obsm["X_pca"]
+        sc.tl.pca(adata, svd_solver='arpack')
+    X_features = adata.obsm['X_pca']
 
-y_micro = adata.obs["Level2_Micro_Niche"].astype(str).values
-valid_micro_mask = pd.Series(y_micro).notna().values & (y_micro != "nan")
+# 提取细粒度微生态位标签
+y_micro = adata.obs['Level2_Micro_Niche'].astype(str).values
 
+# 为了计算无监督指标，必须保证至少有两个类别且不能有过小（<2）的散点群
+valid_micro_mask = adata.obs['Level2_Micro_Niche'] != 'nan'
 X_valid = X_features[valid_micro_mask]
 y_valid = y_micro[valid_micro_mask]
 
-asw_val, sample_silhouette_values, filtered_mask_for_sil = safe_silhouette_score(X_valid, y_valid)
-dbi_val = safe_davies_bouldin_score(X_valid, y_valid)
+# 计算全局平均轮廓系数 (ASW) 和 DBI
+asw_val = silhouette_score(X_valid, y_valid)
+dbi_val = davies_bouldin_score(X_valid, y_valid)
 
-if sample_silhouette_values is not None:
-    y_valid_for_sil = y_valid[filtered_mask_for_sil]
-    tumor_niches_mask = np.array(["TMCN" in str(cat) for cat in y_valid_for_sil])
-    if np.any(tumor_niches_mask):
-        ssc_val = float(np.mean(sample_silhouette_values[tumor_niches_mask]))
-    else:
-        ssc_val = asw_val
+# 计算专属通讯特征轮廓系数 (SS-C) - 针对肿瘤区域内的特定代谢分类计算平均凝聚度
+sample_silhouette_values = silhouette_samples(X_valid, y_valid)
+adata.obs.loc[valid_micro_mask, 'Silhouette_Value'] = sample_silhouette_values
+
+# 提取所有肿瘤代谢生态位的平均轮廓系数 (排除纯Healthy的干扰)
+tumor_niches_mask = [True if "TMCN" in str(cat) else False for cat in y_valid]
+if any(tumor_niches_mask):
+    ssc_val = np.mean(sample_silhouette_values[tumor_niches_mask])
 else:
-    ssc_val = np.nan
+    ssc_val = asw_val # 如果没有细分肿瘤区，兜底等同于全局ASW
 
-print(f"  --> Average Silhouette Width (ASW): {asw_val:.4f}" if not np.isnan(asw_val) else "  --> ASW: NaN")
-print(f"  --> Silhouette Score on Coupling (SS-C): {ssc_val:.4f}" if not np.isnan(ssc_val) else "  --> SS-C: NaN")
-print(f"  --> Davies-Bouldin Index (DBI): {dbi_val:.4f}" if not np.isnan(dbi_val) else "  --> DBI: NaN")
+print(f"  --> Average Silhouette Width (ASW): {asw_val:.4f}")
+print(f"  --> Silhouette Score on Coupling (SS-C): {ssc_val:.4f}")
+print(f"  --> Davies-Bouldin Index (DBI): {dbi_val:.4f}")
 
 # =========================================================
-# 模块三：空间拓扑指标 Moran's I
+# 模块三：空间物理拓扑聚集度 (Spatial Auto-correlation: Moran's I) - 【已修复】
 # =========================================================
-print("\n🟣 [3/4] 正在计算 Moran's I...")
+print("\n🟣 [3/3] 正在计算物理空间连贯性指标 (Moran's I)...")
 
-if "spatial_connectivities" not in adata.obsp:
-    print("  --> 正在重构基础空间邻接图...")
-    sq.gr.spatial_neighbors(
-        adata,
-        coord_type="generic",
-        spatial_key="spatial",
-        n_neighs=6
-    )
+# 1. 确保存在空间邻接图
+if 'spatial_connectivities' not in adata.obsp:
+    print("  --> 正在重构基础空间邻接图 (KNN)...")
+    sq.gr.spatial_neighbors(adata, coord_type="generic", spatial_key="spatial", n_neighs=6)
 
-niche_dummies = pd.get_dummies(adata.obs["Level2_Micro_Niche"])
-dummy_cols = [c for c in niche_dummies.columns if "TMCN" in str(c)]
+# 2. 将 Level2_Micro_Niche 进行 One-hot 编码
+niche_dummies = pd.get_dummies(adata.obs['Level2_Micro_Niche'])
+dummy_cols = [c for c in niche_dummies.columns if "TMCN" in str(c)] # 仅评估代谢微环境
 
 if len(dummy_cols) > 0:
+    # 【核心修复逻辑】：构建轻量级“影子 AnnData”
+    # 将生态位的 One-hot 矩阵转为 float，并塞入 tmp_adata.X 中骗过 Squidpy
     tmp_adata = sc.AnnData(X=niche_dummies[dummy_cols].values.astype(float))
     tmp_adata.obs_names = adata.obs_names
     tmp_adata.var_names = dummy_cols
-    tmp_adata.obsp["spatial_connectivities"] = adata.obsp["spatial_connectivities"]
-
-    sq.gr.spatial_autocorr(
-        tmp_adata,
-        mode="moran",
-        genes=dummy_cols,
-        n_perms=100,
-        n_jobs=-1
-    )
-
+    
+    # 继承主 adata 的空间物理连通图
+    tmp_adata.obsp['spatial_connectivities'] = adata.obsp['spatial_connectivities']
+    
+    # 核心计算：现在 Squidpy 可以把这些生态位当做“基因”来计算物理聚集度了
+    sq.gr.spatial_autocorr(tmp_adata, mode="moran", genes=dummy_cols, n_perms=100, n_jobs=-1)
+    
+    # 获取结果
     moran_df = tmp_adata.uns["moranI"]
-    moran_val = float(moran_df["I"].mean())
-
+    moran_val = moran_df['I'].mean()
+    
+    # 顺便为你打印出各个生态位的具体连续性得分
     print("  --> 各子生态位 Moran's I 得分:")
     for idx, row in moran_df.iterrows():
         print(f"      - {idx}: {row['I']:.4f}")
+        
 else:
     moran_val = 0.0
-    print("  ⚠️ 未检测到细粒度 TMCN 代谢生态位。")
+    print("  ⚠️ 警告：未检测到细粒度的 TMCN 代谢生态位。")
 
-print(f"  --> 总体平均 Moran's I: {moran_val:.4f}")
+print(f"  --> 总体平均 Moran's Index (Moran's I): {moran_val:.4f}")
 
-# =========================================================
-# 模块四：Spatial Consistency Score
-# =========================================================
-print("\n🟠 [4/4] 正在计算 Spatial Consistency Score...")
-
-spatial_consistency_val = calculate_spatial_consistency(
-    adata,
-    label_col="Level2_Micro_Niche"
-)
-
-print(f"  --> Spatial Consistency Score: {spatial_consistency_val:.4f}")
 
 # =========================================================
-# 模块五：汇总保存 CSV
+# 模块四：汇总保存 CSV
 # =========================================================
-SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/test/colorectal_12_cancer_CRC/SN048_A121573_Rep2/SpaCET_And_My"
+SAVE_DIR = "/home/zhangjunyi/xiangmu/nichecompass-main/outputs/zhibiao/12_colorectal_cancer_CRC/SN048_A121573_Rep1/SpaCET_And_My"
 os.makedirs(SAVE_DIR, exist_ok=True)
-
 csv_save_path = os.path.join(SAVE_DIR, "评估结果_SpaCET_And_My.csv")
 
+# 构建结果表
 results_df = pd.DataFrame({
     "Metric Name": [
-        "Adjusted Rand Index",
-        "Normalized Mutual Information",
-        "Adjusted Mutual Information",
-        "Homogeneity Score",
-        "Completeness Score",
-        "V-measure Score",
-        "F1-Score",
-        "Average Silhouette Width",
-        "Silhouette Score on Coupling Scores",
-        "Davies-Bouldin Index",
-        "Moran's Index",
-        "Spatial Consistency Score"
+        "Adjusted Rand Index", 
+        "F1-Score", 
+        "Average Silhouette Width", 
+        "Silhouette Score on Coupling Scores", 
+        "Davies-Bouldin Index", 
+        "Moran's Index"
     ],
-    "Abbreviation": [
-        "ARI",
-        "NMI",
-        "AMI",
-        "Homogeneity",
-        "Completeness",
-        "V-measure",
-        "F1",
-        "ASW",
-        "SS-C",
-        "DBI",
-        "Moran's I",
-        "Spatial Consistency"
-    ],
+    "Abbreviation": ["ARI", "F1", "ASW", "SS-C", "DBI", "Moran's I"],
     "Value": [
-        round(ari_val, 4),
-        round(nmi_val, 4),
-        round(ami_val, 4),
-        round(homogeneity_val, 4),
-        round(completeness_val, 4),
-        round(v_measure_val, 4),
-        round(f1_val, 4),
-        round(asw_val, 4) if not np.isnan(asw_val) else np.nan,
-        round(ssc_val, 4) if not np.isnan(ssc_val) else np.nan,
-        round(dbi_val, 4) if not np.isnan(dbi_val) else np.nan,
-        round(moran_val, 4),
-        round(spatial_consistency_val, 4) if not np.isnan(spatial_consistency_val) else np.nan
+        round(ari_val, 4), 
+        round(f1_val, 4), 
+        round(asw_val, 4), 
+        round(ssc_val, 4), 
+        round(dbi_val, 4), 
+        round(moran_val, 4)
     ],
     "Ideal Trend": [
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 1",
-        "Closer to 0",
-        "Closer to 1 (>0)",
-        "Closer to 1"
+        "Closer to 1", "Closer to 1", "Closer to 1", 
+        "Closer to 1", "Closer to 0", "Closer to 1 (>0)"
     ],
     "Evaluation Dimension": [
-        "Macro Boundary (Supervised)",
-        "Macro Boundary (Supervised)",
-        "Macro Boundary (Supervised)",
-        "Macro Boundary (Supervised)",
-        "Macro Boundary (Supervised)",
-        "Macro Boundary (Supervised)",
-        "Macro Boundary (Supervised)",
-        "Micro Pureness (Unsupervised)",
-        "Micro Pureness (Unsupervised)",
-        "Micro Pureness (Unsupervised)",
-        "Spatial Topology (Physical)",
+        "Macro Boundary (Supervised)", 
+        "Macro Boundary (Supervised)", 
+        "Micro Pureness (Unsupervised)", 
+        "Micro Pureness (Unsupervised)", 
+        "Micro Pureness (Unsupervised)", 
         "Spatial Topology (Physical)"
     ]
 })
 
 results_df.to_csv(csv_save_path, index=False, encoding="utf-8-sig")
 
-print("\n" + "=" * 60)
-print(f"🎉 指标计算完成，结果已保存至:\n   {csv_save_path}")
-print("=" * 60)
-display(results_df)
+print("\n" + "="*60)
+print(f"🎉 巅峰对决指标计算完毕！最终汇总表格已成功保存至：\n   {csv_save_path}")
+print("="*60)
